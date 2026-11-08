@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-app: #F6F7F9;
+    --sidebar-bg: #0F172A;
+    --sidebar-hover: #1E293B;
+    --sidebar-active: #1E293B;
+    --sidebar-border: #334155;
+    
+    --brand-primary: #059669;
+    --brand-primary-hover: #047857;
+    --brand-primary-light: #ECFDF5;
+    
+    --warning-amber: #D97706;
+    --warning-amber-light: #FEF3C7;
+    
+    --danger-red: #DC2626;
+    --danger-red-light: #FEE2E2;
+    
+    --card-border: #E2E8F0;
+    --card-bg: #FFFFFF;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg-app);
+    color: #0F172A;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden; /* App shell viewport height enforcement */
+  }
+
+  /* Universal tabular figures on financial quantities & prices */
+  .tabular-nums,
+  [data-tabular="true"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Monospace strictly for SKUs and Barcodes */
+  .font-code,
+  .sku-badge,
+  .barcode-text {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+}
+
+/* Custom crisp scrollbar for inner scrollable panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}

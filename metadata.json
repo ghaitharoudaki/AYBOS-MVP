@@ -1,0 +1,6 @@
+{
+  "name": "AYBOS - Core Supermarket Management System",
+  "description": "Functional Core Supermarket Management System (MVP) featuring the 7 essential modules: User & Role RBAC, Product Catalog & Barcodes, POS Checkout, Real-time Inventory & Ledger, Suppliers, Purchase Orders & Receiving, and Operational Dashboard with Academic Project Report viewer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

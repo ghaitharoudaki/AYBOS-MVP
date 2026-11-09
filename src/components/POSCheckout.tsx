@@ -22,9 +22,17 @@ import {
   ReceiptText,
   Clock,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Milk,
+  Croissant,
+  Coffee,
+  Wheat,
+  Cookie,
+  Apple,
+  Package
 } from 'lucide-react';
 import { Product, CartItem, SalesReceipt, User } from '../types/aybos';
+import { ConfirmModal } from './ConfirmModal';
 
 interface POSCheckoutProps {
   products: Product[];
@@ -52,6 +60,7 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [itemWarning, setItemWarning] = useState<{ productId: string; text: string } | null>(null);
   const [receiptModal, setReceiptModal] = useState<SalesReceipt | null>(null);
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
   // References
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -64,17 +73,29 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
     { id: 'cat-3', name: 'Beverages', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
     { id: 'cat-4', name: 'Pantry & Grains', color: 'bg-orange-50 text-orange-700 border-orange-200' },
     { id: 'cat-5', name: 'Snacks & Sweets', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    { id: 'cat-6', name: 'Fresh Produce', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { id: 'cat-7', name: 'Household', color: 'bg-teal-50 text-teal-700 border-teal-200' },
   ];
 
-  // Category initial colors for tile placeholders
+  // Category soft colors and Lucide icons for ~88px tile header
   const getCategoryTheme = (catId: string) => {
     switch (catId) {
-      case 'cat-1': return { bg: 'bg-blue-100 text-blue-800', border: 'border-blue-200', tag: 'Dairy' };
-      case 'cat-2': return { bg: 'bg-amber-100 text-amber-800', border: 'border-amber-200', tag: 'Bakery' };
-      case 'cat-3': return { bg: 'bg-cyan-100 text-cyan-800', border: 'border-cyan-200', tag: 'Beverages' };
-      case 'cat-4': return { bg: 'bg-orange-100 text-orange-800', border: 'border-orange-200', tag: 'Pantry' };
-      case 'cat-5': return { bg: 'bg-purple-100 text-purple-800', border: 'border-purple-200', tag: 'Snacks' };
-      default: return { bg: 'bg-slate-100 text-slate-800', border: 'border-slate-200', tag: 'General' };
+      case 'cat-1': 
+        return { bg: 'bg-blue-50/80 text-blue-600', border: 'border-blue-100', icon: Milk };
+      case 'cat-2': 
+        return { bg: 'bg-amber-50/80 text-amber-600', border: 'border-amber-100', icon: Croissant };
+      case 'cat-3': 
+        return { bg: 'bg-cyan-50/80 text-cyan-600', border: 'border-cyan-100', icon: Coffee };
+      case 'cat-4': 
+        return { bg: 'bg-orange-50/80 text-orange-600', border: 'border-orange-100', icon: Wheat };
+      case 'cat-5': 
+        return { bg: 'bg-purple-50/80 text-purple-600', border: 'border-purple-100', icon: Cookie };
+      case 'cat-6': 
+        return { bg: 'bg-emerald-50/80 text-emerald-600', border: 'border-emerald-100', icon: Apple };
+      case 'cat-7': 
+        return { bg: 'bg-teal-50/80 text-teal-600', border: 'border-teal-100', icon: Sparkles };
+      default: 
+        return { bg: 'bg-slate-50 text-slate-600', border: 'border-slate-200', icon: Package };
     }
   };
 
@@ -215,11 +236,16 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
 
   const handleClearCart = () => {
     if (cart.length === 0) return;
+    setIsClearConfirmOpen(true);
+  };
+
+  const executeClearCart = () => {
     setCart([]);
     setCashTendered('');
     setDiscountValue('');
     setItemWarning(null);
-    triggerToast('Cart cleared');
+    triggerToast('Current sale cart cleared');
+    setIsClearConfirmOpen(false);
   };
 
   const handleHoldSale = () => {
@@ -364,7 +390,7 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
                 className="w-full pl-11 pr-24 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-sans text-sm bg-slate-50 focus:bg-white transition placeholder:text-slate-400 shadow-2xs h-12"
               />
               <div className="absolute right-3 flex items-center gap-1.5 pointer-events-none">
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 bg-slate-200 rounded border border-slate-300">
+                <kbd className="px-1.5 py-0.5 text-xs font-semibold text-slate-500 bg-slate-200 rounded border border-slate-300">
                   F2
                 </kbd>
                 <span className="text-xs text-slate-400">Scan</span>
@@ -401,37 +427,33 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
                 <p className="text-xs text-slate-400 mt-1">Try another category or scan a universal barcode</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3.5">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
                 {filteredProducts.map(product => {
                   const isOutOfStock = product.currentStock <= 0;
                   const isLowStock = product.currentStock <= product.reorderLevel && !isOutOfStock;
                   const theme = getCategoryTheme(product.categoryId);
+                  const CategoryIcon = theme.icon;
 
                   return (
                     <button
                       key={product.id}
                       disabled={isOutOfStock}
                       onClick={() => addItemToCart(product)}
-                      className={`group relative flex flex-col text-left p-3 rounded-xl border transition-all text-xs select-none ${
+                      className={`group relative flex flex-col text-left p-2.5 rounded-xl border transition-all text-xs select-none ${
                         isOutOfStock 
                           ? 'bg-slate-100/70 border-slate-200 opacity-50 cursor-not-allowed'
                           : 'bg-white border-slate-200 hover:border-emerald-500 hover:shadow-xs active:scale-[0.98]'
                       }`}
                     >
-                      {/* Product Thumbnail / Category Color Placeholder */}
-                      <div className={`w-full h-20 rounded-lg ${theme.bg} ${theme.border} border flex items-center justify-center font-bold text-lg mb-2.5 relative overflow-hidden transition group-hover:opacity-95`}>
-                        <span className="opacity-80 uppercase tracking-widest text-xs font-semibold">
-                          {theme.tag}
-                        </span>
-                        
-                        {/* Unit badge on corner */}
-                        <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/80 text-slate-700 font-code">
-                          {product.unit}
-                        </span>
+                      {/* Product Visual Area (~88px tall with distinct soft color & small lucide icon) */}
+                      <div className={`w-full h-[88px] rounded-lg ${theme.bg} ${theme.border} border flex items-center justify-center mb-2 relative overflow-hidden transition group-hover:scale-[1.01]`}>
+                        <div className="w-10 h-10 rounded-full bg-white/70 backdrop-blur-xs flex items-center justify-center shadow-2xs">
+                          <CategoryIcon className="w-5 h-5 stroke-[1.75]" />
+                        </div>
                       </div>
 
                       {/* Product Name (2 lines max) */}
-                      <div className="font-semibold text-slate-900 line-clamp-2 min-h-[32px] leading-tight mb-2">
+                      <div className="font-semibold text-slate-900 line-clamp-2 min-h-[32px] leading-tight mb-2 text-xs">
                         {product.name}
                       </div>
 
@@ -441,24 +463,19 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
                           ${product.sellingPrice.toFixed(2)}
                         </span>
 
-                        {/* Stock indicator badge */}
+                        {/* Stock indicator badge: show ONLY for Low and Out of stock */}
                         <div>
                           {isOutOfStock ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
                               <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                              Out of stock
+                              Out
                             </span>
                           ) : isLowStock ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                              Low: {product.currentStock} left
+                              Low: {product.currentStock}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              <span className="tabular-nums">{product.currentStock}</span>
-                            </span>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     </button>
@@ -479,7 +496,7 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
                     <button
                       key={h.id}
                       onClick={() => restoreHeldCart(h.id)}
-                      className="px-2 py-0.5 rounded bg-white border border-amber-300 text-amber-900 text-[11px] font-semibold hover:bg-amber-100 transition flex items-center gap-1"
+                      className="px-2 py-0.5 rounded bg-white border border-amber-300 text-amber-900 text-xs font-semibold hover:bg-amber-100 transition flex items-center gap-1"
                     >
                       <PlayCircle className="w-3 h-3 text-amber-700" />
                       <span>{h.saleNumber} ({h.cart.length} items)</span>
@@ -506,38 +523,45 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-bold text-slate-900">Current Sale</h2>
-                  <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                  <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                     Walk-in Customer
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400 font-mono">
-                  Cashier: {currentUser.name}
+                <div className="text-xs text-slate-500 font-sans">
+                  <span>Cashier: </span>
+                  <span className="font-semibold text-slate-700">{currentUser.name}</span>
                 </div>
               </div>
             </div>
 
-            {/* Hold & Clear Action Buttons */}
-            <div className="flex items-center gap-1.5">
+            {/* Hold & Clear Action Buttons (Visible outline buttons, 40px high, shortcut hints) */}
+            <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={handleHoldSale}
                 disabled={cart.length === 0}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 text-xs font-semibold transition disabled:opacity-40 flex items-center gap-1 h-8"
+                className="px-3 h-10 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400 text-slate-700 active:bg-slate-100 text-xs font-semibold transition shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-slate-300"
                 title="Hold Sale (F4)"
               >
-                <PauseCircle className="w-3.5 h-3.5" />
+                <PauseCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
                 <span>Hold</span>
-                <kbd className="text-[9px] text-slate-400 font-mono">F4</kbd>
+                <kbd className="px-1.5 py-0.5 text-xs font-semibold text-slate-500 bg-slate-100 rounded border border-slate-200">
+                  F4
+                </kbd>
               </button>
 
               <button
+                type="button"
                 onClick={handleClearCart}
                 disabled={cart.length === 0}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-red-600 hover:bg-red-50 text-xs font-semibold transition disabled:opacity-40 flex items-center gap-1 h-8"
+                className="px-3 h-10 rounded-lg border border-slate-300 bg-white hover:bg-red-50 hover:border-red-300 hover:text-red-700 text-slate-700 active:bg-red-100 text-xs font-semibold transition shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-red-200"
                 title="Clear Cart (F9)"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-4 h-4 text-slate-500 group-hover:text-red-600 flex-shrink-0" />
                 <span>Clear</span>
-                <kbd className="text-[9px] text-slate-400 font-mono">F9</kbd>
+                <kbd className="px-1.5 py-0.5 text-xs font-semibold text-slate-500 bg-slate-100 rounded border border-slate-200">
+                  F9
+                </kbd>
               </button>
             </div>
           </div>
@@ -576,8 +600,8 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
                   >
                     <div className="min-w-0 flex-1 pr-3">
                       <div className="font-semibold text-slate-900 truncate">{item.product.name}</div>
-                      <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
-                        <span className="font-code text-slate-600">{item.product.sku}</span>
+                      <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                        <span className="font-mono text-slate-600">{item.product.sku}</span>
                         <span>•</span>
                         <span className="tabular-nums">${item.unitPrice.toFixed(2)}</span>
                         <span>•</span>
@@ -628,62 +652,78 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
           {/* Summary & Checkout Block (Pinned to bottom) */}
           <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3 flex-shrink-0">
             
-            {/* Discount & Subtotal Rows */}
-            <div className="space-y-1.5 text-xs text-slate-600">
-              <div className="flex justify-between">
-                <span>Subtotal ({cart.reduce((sum, i) => sum + i.quantity, 0)} items)</span>
-                <span className="tabular-nums font-semibold text-slate-900">${subtotal.toFixed(2)}</span>
+            {/* Discount & Subtotal Rows (14px font size, clean spacing) */}
+            <div className="space-y-2.5 text-sm text-slate-600">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600">Subtotal ({cart.reduce((sum, i) => sum + i.quantity, 0)} items)</span>
+                <span className="tabular-nums font-semibold text-slate-900 text-sm">${subtotal.toFixed(2)}</span>
               </div>
 
-              {/* Optional Discount Input */}
-              <div className="flex items-center justify-between gap-2 pt-0.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-600">Discount:</span>
-                  <div className="inline-flex rounded border border-slate-200 bg-white text-[10px]">
+              {/* Discount Row: Clearer % / $ segmented toggle and 40px high, min-96px wide input */}
+              <div className="flex items-center justify-between gap-3 pt-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 font-medium">Discount</span>
+                  {/* Clearer % / $ Segmented Toggle */}
+                  <div className="inline-flex rounded-lg border border-slate-300 bg-slate-100 p-0.5 shadow-2xs h-10 items-center">
                     <button
                       type="button"
                       onClick={() => setDiscountType('PERCENT')}
-                      className={`px-1.5 py-0.5 font-bold ${discountType === 'PERCENT' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}
+                      className={`h-8.5 px-3 rounded-md text-xs font-bold transition flex items-center justify-center gap-1 ${
+                        discountType === 'PERCENT'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Percentage Discount (%)"
                     >
-                      %
+                      <Percent className="w-3.5 h-3.5" />
+                      <span>%</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setDiscountType('FIXED')}
-                      className={`px-1.5 py-0.5 font-bold ${discountType === 'FIXED' ? 'bg-slate-800 text-white' : 'text-slate-600'}`}
+                      className={`h-8.5 px-3 rounded-md text-xs font-bold transition flex items-center justify-center gap-1 ${
+                        discountType === 'FIXED'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Fixed Amount Discount ($)"
                     >
-                      $
+                      <DollarSign className="w-3.5 h-3.5" />
+                      <span>$</span>
                     </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={discountValue}
-                    onChange={(e) => setDiscountValue(e.target.value)}
-                    className="w-16 px-2 py-0.5 rounded border border-slate-300 text-right tabular-nums text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      step={discountType === 'PERCENT' ? '1' : '0.01'}
+                      placeholder="0"
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                      className="w-24 min-w-[96px] h-10 px-3 rounded-lg border border-slate-300 text-right tabular-nums text-sm font-semibold bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs transition"
+                    />
+                  </div>
                   {calculatedDiscount > 0 && (
-                    <span className="font-semibold text-red-600 tabular-nums">
+                    <span className="font-semibold text-red-600 tabular-nums text-sm whitespace-nowrap">
                       -${calculatedDiscount.toFixed(2)}
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="flex justify-between">
-                <span>VAT (5% Standard)</span>
-                <span className="tabular-nums font-semibold text-slate-900">${vat.toFixed(2)}</span>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600">VAT (5% Standard)</span>
+                <span className="tabular-nums font-semibold text-slate-900 text-sm">${vat.toFixed(2)}</span>
               </div>
             </div>
 
             {/* Prominent Total Card (36-40px bold, emerald-tinted) */}
             <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-3.5 flex items-center justify-between shadow-2xs">
               <div>
-                <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
+                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">
                   Total Payable
                 </span>
                 <span className="text-xs text-emerald-700">
@@ -745,7 +785,7 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
                   </div>
 
                   <div className="w-36 px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-right">
-                    <div className="text-[10px] text-slate-400 font-medium leading-none">Change Due:</div>
+                    <div className="text-xs text-slate-400 font-medium leading-none">Change Due:</div>
                     <div className={`text-sm font-bold tabular-nums leading-tight ${
                       !isCashSufficient ? 'text-red-600' : changeDue > 0 ? 'text-emerald-700' : 'text-slate-800'
                     }`}>
@@ -794,7 +834,7 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
             >
               <CheckCircle2 className="w-5 h-5" />
               <span>Complete Sale</span>
-              <kbd className="px-2 py-0.5 text-xs bg-emerald-800/80 rounded text-emerald-100 font-mono">
+              <kbd className="px-2 py-0.5 text-xs bg-emerald-800/80 rounded text-emerald-100 font-semibold">
                 F12
               </kbd>
             </button>
@@ -818,11 +858,11 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
                 AY
               </div>
               <h3 className="font-bold text-base text-slate-900">AYBOS SUPERMARKET</h3>
-              <p className="text-[11px] text-slate-500">Central Store Branch #01</p>
-              <div className="mt-2 text-[11px] text-slate-400 font-code">
+              <p className="text-xs text-slate-500">Central Store Branch #01</p>
+              <div className="mt-2 text-xs text-slate-700 font-mono font-bold">
                 Receipt: {receiptModal.receiptNumber}
               </div>
-              <div className="text-[11px] text-slate-400">
+              <div className="text-xs text-slate-500 tabular-nums">
                 {receiptModal.timestamp} • Cashier: {receiptModal.cashierName}
               </div>
             </div>
@@ -851,19 +891,19 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
                 <span>Total Paid:</span>
                 <span className="tabular-nums text-emerald-700">${receiptModal.grandTotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-[11px] pt-1">
+              <div className="flex justify-between text-xs pt-1">
                 <span>Method: {receiptModal.paymentMethod}</span>
                 <span className="tabular-nums">Tendered: ${receiptModal.tenderedAmount.toFixed(2)}</span>
               </div>
               {receiptModal.paymentMethod === 'CASH' && (
-                <div className="flex justify-between text-[11px] font-semibold text-slate-800">
+                <div className="flex justify-between text-xs font-semibold text-slate-800">
                   <span>Change Due:</span>
                   <span className="tabular-nums">${receiptModal.changeDue.toFixed(2)}</span>
                 </div>
               )}
             </div>
 
-            <div className="text-center pt-3 text-[11px] text-slate-400">
+            <div className="text-center pt-3 text-xs text-slate-400">
               Thank you for shopping at AYBOS!
             </div>
 
@@ -888,6 +928,18 @@ export const POSCheckout: React.FC<POSCheckoutProps> = ({ products, currentUser,
           </div>
         </div>
       )}
+
+      {/* Clear Cart Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isClearConfirmOpen}
+        title="Clear Current Sale?"
+        message={`Are you sure you want to remove all ${cart.length} item${cart.length > 1 ? 's' : ''} from sale ${saleNumber}? This action will discard the current customer basket.`}
+        confirmLabel="Clear Cart"
+        cancelLabel="Keep Basket"
+        isDestructive={true}
+        onConfirm={executeClearCart}
+        onCancel={() => setIsClearConfirmOpen(false)}
+      />
 
     </div>
   );

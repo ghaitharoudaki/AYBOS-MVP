@@ -6,20 +6,14 @@ import {
   Receipt, 
   Boxes, 
   CheckCircle2, 
-  Calendar, 
   Printer, 
   ArrowRight,
   TrendingUp,
   TrendingDown,
   ShoppingBag,
   Download,
-  Filter,
   FileSpreadsheet,
-  Layers,
-  Sparkles,
   PieChart as PieChartIcon,
-  Clock,
-  ArrowUpRight,
   Plus
 } from 'lucide-react';
 import { 
@@ -34,8 +28,7 @@ import {
   Pie, 
   Cell, 
   BarChart, 
-  Bar, 
-  Legend 
+  Bar
 } from 'recharts';
 import { Product, SalesReceipt, PurchaseOrder } from '../types/aybos';
 import { useStore } from '../context/StoreContext';
@@ -53,7 +46,6 @@ type ReportType = 'sales' | 'stock' | 'purchasing';
 type ChartRange = '7D' | '30D';
 type DateFilterRange = 'ALL' | 'TODAY' | '7D' | '30D';
 
-// DESIGN TOKENS FOR CHARTS
 const COLORS = {
   emerald: '#059669',
   emeraldLight: '#10B981',
@@ -70,13 +62,13 @@ const COLORS = {
 };
 
 const CATEGORY_COLORS = [
-  '#059669', // Emerald
-  '#2563EB', // Blue
-  '#D97706', // Amber
-  '#7C3AED', // Purple
-  '#0891B2', // Cyan
-  '#E11D48', // Rose
-  '#475569', // Slate
+  '#059669',
+  '#2563EB',
+  '#D97706',
+  '#7C3AED',
+  '#0891B2',
+  '#E11D48',
+  '#475569',
 ];
 
 export const DashboardReporting: React.FC<DashboardReportingProps> = ({
@@ -97,18 +89,17 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
   const [reportType, setReportType] = useState<ReportType>('sales');
   const [reportDateRange, setReportDateRange] = useState<DateFilterRange>('ALL');
 
-  // --- KPI CALCULATIONS WITH DELTAS VS YESTERDAY ---
+  // KPI calculations with small delta vs yesterday
   const todayStr = new Date().toISOString().substring(0, 10);
   const yesterdayObj = new Date();
   yesterdayObj.setDate(yesterdayObj.getDate() - 1);
   const yesterdayStr = yesterdayObj.toISOString().substring(0, 10);
 
-  // Sales today & yesterday
   const salesToday = receipts.filter(r => (r.timestamp || '').startsWith(todayStr));
   const salesYesterday = receipts.filter(r => (r.timestamp || '').startsWith(yesterdayStr));
 
   const revenueToday = salesToday.reduce((sum, r) => sum + r.grandTotal, 0);
-  const revenueYesterday = salesYesterday.reduce((sum, r) => sum + r.grandTotal, 0) || 540.20; // baseline if empty
+  const revenueYesterday = salesYesterday.reduce((sum, r) => sum + r.grandTotal, 0) || 540.20;
 
   const revenueDeltaPercent = revenueYesterday > 0 
     ? ((revenueToday - revenueYesterday) / revenueYesterday) * 100 
@@ -124,13 +115,12 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
     ? ((basketToday - basketYesterday) / basketYesterday) * 100 
     : 8.5;
 
-  // Low stock counts
   const outOfStockProducts = products.filter(p => p.currentStock <= 0);
   const criticalLowProducts = products.filter(p => p.currentStock > 0 && p.currentStock <= p.reorderLevel);
   const totalLowStockCount = outOfStockProducts.length + criticalLowProducts.length;
-  const lowStockDelta = -1; // e.g. 1 item replenished since yesterday
+  const lowStockDelta = -1;
 
-  // --- CHART 1: REVENUE OVER TIME (7D / 30D AREA CHART) ---
+  // Chart 1: Revenue Over Time
   const revenueTrendData = useMemo(() => {
     const days = chartRange === '7D' ? 7 : 30;
     const result = [];
@@ -141,51 +131,45 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
       const dateKey = d.toISOString().substring(0, 10);
       const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-      // Find real matching receipts for this date
       const daySales = receipts.filter(r => (r.timestamp || '').startsWith(dateKey));
       let dayTotal = daySales.reduce((sum, r) => sum + r.grandTotal, 0);
 
-      // Seed realistic simulation curve if no direct transactions for historical days
       if (dayTotal === 0) {
         const seedMultiplier = 1 + (Math.sin(i * 1.5) * 0.35);
-        dayTotal = Math.round((480 + (i * 18)) * seedMultiplier * 100) / 100;
+        dayTotal = Math.max(140, Math.round(480 * seedMultiplier));
       }
 
       result.push({
         date: label,
-        fullDate: dateKey,
+        rawDate: dateKey,
         revenue: Number(dayTotal.toFixed(2)),
-        orders: daySales.length || Math.floor(12 + Math.sin(i) * 6)
+        orders: Math.max(3, Math.round(dayTotal / 32))
       });
     }
 
     return result;
   }, [receipts, chartRange]);
 
-  // --- CHART 2: SALES BY CATEGORY (DONUT CHART) ---
+  // Chart 2: Category distribution
   const salesByCategoryData = useMemo(() => {
     const categoryTotals: Record<string, { name: string; revenue: number; units: number }> = {};
 
-    // Initialize with categories
     categories.forEach(c => {
       categoryTotals[c.id] = { name: c.name, revenue: 0, units: 0 };
     });
 
-    // Tally sales items
     receipts.forEach(r => {
       (r.items || []).forEach(item => {
         const prod = products.find(p => p.id === item.productId);
         const catId = prod?.categoryId || 'cat-1';
-        if (!categoryTotals[catId]) {
-          categoryTotals[catId] = { name: 'Other', revenue: 0, units: 0 };
+        if (categoryTotals[catId]) {
+          categoryTotals[catId].revenue += item.subtotal;
+          categoryTotals[catId].units += item.quantity;
         }
-        categoryTotals[catId].revenue += item.subtotal;
-        categoryTotals[catId].units += item.quantity;
       });
     });
 
     return Object.values(categoryTotals)
-      .filter(c => c.revenue > 0)
       .map(c => ({
         name: c.name,
         value: Number(c.revenue.toFixed(2)),
@@ -194,7 +178,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
       .sort((a, b) => b.value - a.value);
   }, [receipts, products, categories]);
 
-  // --- CHART 3: TOP 5 BEST-SELLING PRODUCTS (HORIZONTAL BAR) ---
+  // Chart 3: Top 5 Best-Selling Products
   const topProductsData = useMemo(() => {
     const productStats: Record<string, { name: string; sku: string; units: number; revenue: number }> = {};
 
@@ -224,7 +208,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
       }));
   }, [receipts]);
 
-  // --- CSV EXPORT HELPER ---
+  // CSV Export Helper
   const handleExportCSV = () => {
     let filename = '';
     let headers: string[] = [];
@@ -276,7 +260,6 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
       ]);
     }
 
-    // Generate CSV Blob
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
@@ -289,81 +272,61 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
+    store.showToast(`Exported ${filename} successfully.`, 'success');
   };
 
   return (
-    <div className="space-y-4 relative" dir="ltr">
+    <div className="h-full flex flex-col min-h-0 space-y-3 relative overflow-y-auto pr-1" dir="ltr">
 
-      {/* Top Header & Tab Navigation */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-              <BarChart3 className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 leading-tight">
-                Executive Dashboard & Reports
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Financial performance, category distribution, stock health, and audit export
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Main Tab Switcher */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                activeTab === 'overview'
-                  ? 'bg-white text-slate-900 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Overview & Analytics
-            </button>
-            <button
-              onClick={() => setActiveTab('reports')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                activeTab === 'reports'
-                  ? 'bg-white text-slate-900 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Reports & CSV Export
-            </button>
-          </div>
-
+      {/* Clean Tab Switcher Bar (In-page header card removed) */}
+      <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 p-2 shadow-2xs flex-shrink-0">
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
           <button
-            onClick={() => window.print()}
-            className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition"
-            title="Print Summary"
+            onClick={() => setActiveTab('overview')}
+            className={`px-3.5 py-1.5 rounded-md text-sm font-semibold transition ${
+              activeTab === 'overview'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            <Printer className="w-4 h-4" />
+            Overview & Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`px-3.5 py-1.5 rounded-md text-sm font-semibold transition ${
+              activeTab === 'reports'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Reports & CSV Export
           </button>
         </div>
+
+        <button
+          onClick={() => window.print()}
+          className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition"
+          title="Print Summary"
+        >
+          <Printer className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* ========================================================
-          TOP ROW: 4 KPI CARDS (WITH SMALL DELTA VS YESTERDAY)
-         ======================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* TOP ROW: 4 KPI CARDS (WITH SMALL DELTA VS YESTERDAY) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-shrink-0">
         
         {/* KPI 1: Today's Sales */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between mb-1.5">
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">Today's Sales</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900 tabular-nums">
+          <div className="text-xl font-bold text-slate-900 tabular-nums">
             ${revenueToday.toFixed(2)}
           </div>
-          <div className="text-[11px] mt-1.5 flex items-center gap-1.5 font-medium">
+          <div className="text-xs mt-1 flex items-center gap-1.5 font-medium">
             <span className={`inline-flex items-center gap-0.5 font-bold ${
               revenueDeltaPercent >= 0 ? 'text-emerald-700' : 'text-red-700'
             }`}>
@@ -375,17 +338,17 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
         </div>
 
         {/* KPI 2: Transactions */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between mb-1.5">
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">Transactions</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
               <Receipt className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900 tabular-nums">
+          <div className="text-xl font-bold text-slate-900 tabular-nums">
             {countToday}
           </div>
-          <div className="text-[11px] mt-1.5 flex items-center gap-1.5 font-medium">
+          <div className="text-xs mt-1 flex items-center gap-1.5 font-medium">
             <span className={`inline-flex items-center gap-0.5 font-bold ${
               countDelta >= 0 ? 'text-emerald-700' : 'text-slate-600'
             }`}>
@@ -396,17 +359,17 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
         </div>
 
         {/* KPI 3: Average Basket */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between mb-1.5">
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">Average Basket</span>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
               <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900 tabular-nums">
+          <div className="text-xl font-bold text-slate-900 tabular-nums">
             ${basketToday.toFixed(2)}
           </div>
-          <div className="text-[11px] mt-1.5 flex items-center gap-1.5 font-medium">
+          <div className="text-xs mt-1 flex items-center gap-1.5 font-medium">
             <span className={`inline-flex items-center gap-0.5 font-bold ${
               basketDeltaPercent >= 0 ? 'text-emerald-700' : 'text-red-700'
             }`}>
@@ -418,16 +381,16 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
         </div>
 
         {/* KPI 4: Low-Stock Count */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between mb-1.5">
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">Low-Stock Items</span>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold ${
               totalLowStockCount > 0 ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'
             }`}>
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-amber-900 tabular-nums flex items-baseline gap-2">
+          <div className="text-xl font-bold text-amber-900 tabular-nums flex items-baseline gap-2">
             <span>{totalLowStockCount}</span>
             {outOfStockProducts.length > 0 && (
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
@@ -435,7 +398,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
               </span>
             )}
           </div>
-          <div className="text-[11px] mt-1.5 flex items-center gap-1.5 font-medium">
+          <div className="text-xs mt-1 flex items-center gap-1.5 font-medium">
             <span className="text-emerald-700 font-bold">{lowStockDelta} resolved</span>
             <span className="text-slate-400">vs. yesterday</span>
           </div>
@@ -443,29 +406,26 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
 
       </div>
 
-      {/* ========================================================
-          TAB 1: OVERVIEW & ANALYTICS CHARTS
-         ======================================================== */}
+      {/* TAB 1: OVERVIEW & ANALYTICS CHARTS */}
       {activeTab === 'overview' && (
-        <div className="space-y-4">
+        <div className="space-y-3.5 flex-1 min-h-0">
           
-          {/* CHARTS ROW 1: Area Chart (Sales over 7/30 days) & Donut Chart (Sales by Category) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* CHARTS ROW 1 */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
             
-            {/* Area Chart: Sales Trend (2 Cols) */}
-            <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between">
+            {/* Area Chart: Sales Trend */}
+            <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-2">
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-emerald-600" />
                     <span>Gross Sales Performance</span>
                   </h3>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[13px] text-slate-500">
                     Daily register revenue trends and customer order volume
                   </p>
                 </div>
 
-                {/* Range Toggle: 7D vs 30D */}
                 <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
                   <button
                     onClick={() => setChartRange('7D')}
@@ -490,8 +450,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                 </div>
               </div>
 
-              {/* Area Chart */}
-              <div className="h-64 w-full">
+              <div className="h-60 w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={revenueTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
@@ -503,12 +462,12 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.slateLight} />
                     <XAxis 
                       dataKey="date" 
-                      tick={{ fontSize: 11, fill: COLORS.slate }} 
+                      tick={{ fontSize: 12, fill: COLORS.slate }} 
                       tickLine={false} 
                       axisLine={{ stroke: COLORS.slateLight }}
                     />
                     <YAxis 
-                      tick={{ fontSize: 11, fill: COLORS.slate }} 
+                      tick={{ fontSize: 12, fill: COLORS.slate }} 
                       tickLine={false} 
                       axisLine={false}
                       tickFormatter={(val) => `$${val}`}
@@ -537,27 +496,27 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
               </div>
             </div>
 
-            {/* Donut Chart: Sales by Category (1 Col) */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between">
+            {/* Donut Chart: Sales by Category */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col justify-between">
               <div className="pb-3 border-b border-slate-100 mb-2">
                 <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                   <PieChartIcon className="w-4 h-4 text-emerald-600" />
                   <span>Sales by Category</span>
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[13px] text-slate-500">
                   Revenue contribution across departments
                 </p>
               </div>
 
-              <div className="h-56 w-full flex items-center justify-center">
+              <div className="h-52 w-full min-w-0 flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={salesByCategoryData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
+                      innerRadius={50}
+                      outerRadius={75}
                       paddingAngle={3}
                       dataKey="value"
                     >
@@ -579,8 +538,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                 </ResponsiveContainer>
               </div>
 
-              {/* Category Legend list */}
-              <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-100 text-[11px]">
+              <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-100 text-xs">
                 {salesByCategoryData.slice(0, 4).map((entry, index) => (
                   <div key={entry.name} className="flex items-center gap-1.5 truncate">
                     <span 
@@ -596,22 +554,22 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
 
           </div>
 
-          {/* CHARTS ROW 2: Top 5 Products (Horizontal Bar) & "Needs Replenishment" Panel */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* CHARTS ROW 2: Top 5 Products & "Needs Replenishment" Panel */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
             
             {/* Horizontal Bar Chart: Top 5 Products */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col justify-between">
               <div className="pb-3 border-b border-slate-100 mb-2">
                 <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-emerald-600" />
                   <span>Top 5 Best-Selling Products</span>
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[13px] text-slate-500">
                   Ranked by unit volume sold across checkout registers
                 </p>
               </div>
 
-              <div className="h-64 w-full">
+              <div className="h-60 w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart 
                     layout="vertical" 
@@ -621,14 +579,14 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={COLORS.slateLight} />
                     <XAxis 
                       type="number" 
-                      tick={{ fontSize: 11, fill: COLORS.slate }} 
+                      tick={{ fontSize: 12, fill: COLORS.slate }} 
                       tickLine={false} 
                       axisLine={{ stroke: COLORS.slateLight }}
                     />
                     <YAxis 
                       type="category" 
                       dataKey="name" 
-                      tick={{ fontSize: 11, fill: COLORS.slate }} 
+                      tick={{ fontSize: 12, fill: COLORS.slate }} 
                       tickLine={false} 
                       axisLine={false}
                       width={120}
@@ -641,7 +599,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                         fontSize: '12px',
                         color: '#fff' 
                       }}
-                      formatter={(val: any, name: any) => [val, 'Units Sold']}
+                      formatter={(val: any) => [val, 'Units Sold']}
                     />
                     <Bar dataKey="units" fill={COLORS.emerald} radius={[0, 4, 4, 0]} barSize={18} />
                   </BarChart>
@@ -650,7 +608,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
             </div>
 
             {/* "Needs Replenishment" Panel with one-click "Create PO" */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-2">
                   <div>
@@ -658,7 +616,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                       <AlertTriangle className="w-4 h-4 text-amber-600" />
                       <span>Needs Replenishment</span>
                     </h3>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[13px] text-slate-500">
                       Catalog items currently at or below safety reorder threshold
                     </p>
                   </div>
@@ -675,7 +633,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                 {totalLowStockCount === 0 ? (
                   <div className="py-12 text-center text-xs text-emerald-700 bg-emerald-50/50 rounded-lg border border-emerald-100 font-medium flex items-center justify-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>All inventory lines are currently above their reorder safety thresholds.</span>
+                    <span>All inventory lines are currently above their safety thresholds.</span>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
@@ -688,13 +646,13 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                         >
                           <div className="min-w-0 pr-2">
                             <div className="font-semibold text-slate-900 truncate">{p.name}</div>
-                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                              {p.sku} • Min Threshold: {p.reorderLevel} {p.unit}
+                            <div className="text-xs text-slate-400 mt-0.5">
+                              SKU: <span className="font-mono">{p.sku}</span> • Min: {p.reorderLevel} {p.unit}
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2.5 flex-shrink-0">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold tabular-nums ${
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold tabular-nums ${
                               isZero ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
                             }`}>
                               {isZero ? '0 Balance' : `Stock: ${p.currentStock}`}
@@ -715,7 +673,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                 <span>{totalLowStockCount} products require purchase order replenishment</span>
                 <button
                   onClick={onNavigateToInventory}
@@ -730,8 +688,8 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
           </div>
 
           {/* RECENT TRANSACTIONS TABLE */}
-          <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-            <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div className="bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
+            <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-2 font-bold text-xs text-slate-900">
                 <Receipt className="w-4 h-4 text-emerald-600" />
                 <span>Recent Checkout Transactions</span>
@@ -742,9 +700,9 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
+              <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold select-none">
+                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold select-none text-xs">
                     <th className="py-2.5 px-4 font-mono">Receipt #</th>
                     <th className="py-2.5 px-4">Timestamp</th>
                     <th className="py-2.5 px-4">Cashier</th>
@@ -755,25 +713,25 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                     <th className="py-2.5 px-4 text-right">Grand Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 text-sm">
                   {receipts.slice(0, 8).map(r => (
-                    <tr key={r.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-4 font-mono font-bold text-slate-900">{r.receiptNumber}</td>
-                      <td className="py-2.5 px-4 text-slate-500 tabular-nums">{r.timestamp}</td>
-                      <td className="py-2.5 px-4 font-medium text-slate-800">{r.cashierName}</td>
-                      <td className="py-2.5 px-4 tabular-nums text-slate-600">
+                    <tr key={r.id} className="h-[52px] hover:bg-slate-50">
+                      <td className="py-2.5 px-4 font-mono font-bold text-slate-900 text-xs">{r.receiptNumber}</td>
+                      <td className="py-2.5 px-4 text-slate-500 tabular-nums text-xs">{r.timestamp}</td>
+                      <td className="py-2.5 px-4 font-medium text-slate-800 text-xs">{r.cashierName}</td>
+                      <td className="py-2.5 px-4 tabular-nums text-slate-600 text-xs">
                         {r.items.reduce((sum, i) => sum + i.quantity, 0)} units
                       </td>
                       <td className="py-2.5 px-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                           r.paymentMethod === 'CASH' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
                         }`}>
                           {r.paymentMethod === 'CASH' ? 'Cash' : 'Card'}
                         </span>
                       </td>
-                      <td className="py-2.5 px-4 tabular-nums text-slate-600">${r.tenderedAmount.toFixed(2)}</td>
-                      <td className="py-2.5 px-4 tabular-nums text-slate-500">${r.changeDue.toFixed(2)}</td>
-                      <td className="py-2.5 px-4 text-right font-bold text-emerald-700 tabular-nums">${r.grandTotal.toFixed(2)}</td>
+                      <td className="py-2.5 px-4 tabular-nums text-slate-600 text-xs">${r.tenderedAmount.toFixed(2)}</td>
+                      <td className="py-2.5 px-4 tabular-nums text-slate-500 text-xs">${r.changeDue.toFixed(2)}</td>
+                      <td className="py-2.5 px-4 text-right font-bold text-emerald-700 tabular-nums text-sm">${r.grandTotal.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -784,18 +742,14 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
         </div>
       )}
 
-      {/* ========================================================
-          TAB 2: REPORTS & CSV EXPORT
-         ======================================================== */}
+      {/* TAB 2: REPORTS & CSV EXPORT */}
       {activeTab === 'reports' && (
-        <div className="space-y-4">
+        <div className="space-y-3.5 flex-1 min-h-0">
           
-          {/* Reports Toolbar with Sub-Tabs & Export Action */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
             
-            {/* Report Category Switcher */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:block">Report:</span>
+              <span className="text-sm font-medium text-slate-600 hidden sm:block">Report:</span>
               <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
                 <button
                   onClick={() => setReportType('sales')}
@@ -830,14 +784,13 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
               </div>
             </div>
 
-            {/* Date Range & Export Button */}
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:block">Filter:</span>
+                <span className="text-sm font-medium text-slate-600 hidden sm:block">Filter:</span>
                 <select
                   value={reportDateRange}
                   onChange={(e) => setReportDateRange(e.target.value as any)}
-                  className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
+                  className="px-2.5 py-1 text-sm rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
                 >
                   <option value="ALL">All Records</option>
                   <option value="TODAY">Today Only</option>
@@ -848,7 +801,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
 
               <button
                 onClick={handleExportCSV}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center gap-1.5 shadow-xs h-9 active:scale-98"
+                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition flex items-center gap-1.5 shadow-xs h-9 active:scale-98"
               >
                 <Download className="w-4 h-4" />
                 <span>Export CSV</span>
@@ -858,7 +811,7 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
           </div>
 
           {/* REPORT PREVIEW TABLE */}
-          <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
             <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-2 font-bold text-xs text-slate-800">
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
@@ -875,9 +828,9 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
 
             <div className="overflow-x-auto">
               {reportType === 'sales' && (
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-sm text-left">
                   <thead>
-                    <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                    <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold text-xs">
                       <th className="py-2.5 px-4 font-mono">Receipt #</th>
                       <th className="py-2.5 px-4">Date & Time</th>
                       <th className="py-2.5 px-4">Cashier</th>
@@ -888,21 +841,21 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                       <th className="py-2.5 px-4 text-right">Grand Total</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 text-sm">
                     {receipts.map(r => (
-                      <tr key={r.id} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-4 font-mono font-bold text-slate-900">{r.receiptNumber}</td>
-                        <td className="py-2.5 px-4 text-slate-500 tabular-nums">{r.timestamp}</td>
-                        <td className="py-2.5 px-4">{r.cashierName}</td>
+                      <tr key={r.id} className="h-[52px] hover:bg-slate-50">
+                        <td className="py-2.5 px-4 font-mono font-bold text-slate-900 text-xs">{r.receiptNumber}</td>
+                        <td className="py-2.5 px-4 text-slate-500 tabular-nums text-xs">{r.timestamp}</td>
+                        <td className="py-2.5 px-4 text-xs">{r.cashierName}</td>
                         <td className="py-2.5 px-4">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
+                          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700">
                             {r.paymentMethod}
                           </span>
                         </td>
-                        <td className="py-2.5 px-4 tabular-nums text-slate-600">${r.subtotal.toFixed(2)}</td>
-                        <td className="py-2.5 px-4 tabular-nums text-slate-600">${(r.discount || 0).toFixed(2)}</td>
-                        <td className="py-2.5 px-4 tabular-nums text-slate-600">${r.tax.toFixed(2)}</td>
-                        <td className="py-2.5 px-4 text-right font-bold text-emerald-700 tabular-nums">${r.grandTotal.toFixed(2)}</td>
+                        <td className="py-2.5 px-4 tabular-nums text-slate-600 text-xs">${r.subtotal.toFixed(2)}</td>
+                        <td className="py-2.5 px-4 tabular-nums text-slate-600 text-xs">${(r.discount || 0).toFixed(2)}</td>
+                        <td className="py-2.5 px-4 tabular-nums text-slate-600 text-xs">${r.tax.toFixed(2)}</td>
+                        <td className="py-2.5 px-4 text-right font-bold text-emerald-700 tabular-nums text-sm">${r.grandTotal.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -910,9 +863,9 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
               )}
 
               {reportType === 'stock' && (
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-sm text-left">
                   <thead>
-                    <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                    <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold text-xs">
                       <th className="py-2.5 px-4 font-mono">SKU</th>
                       <th className="py-2.5 px-4">Product Name</th>
                       <th className="py-2.5 px-4">Category</th>
@@ -923,20 +876,20 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                       <th className="py-2.5 px-4 text-right">Cost Valuation</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 text-sm">
                     {products.map(p => {
                       const cat = categories.find(c => c.id === p.categoryId)?.name || 'General';
                       const val = p.currentStock * p.costPrice;
                       return (
-                        <tr key={p.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-4 font-mono font-medium text-slate-700">{p.sku}</td>
+                        <tr key={p.id} className="h-[52px] hover:bg-slate-50">
+                          <td className="py-2.5 px-4 font-mono font-medium text-slate-700 text-xs">{p.sku}</td>
                           <td className="py-2.5 px-4 font-semibold text-slate-900">{p.name}</td>
-                          <td className="py-2.5 px-4 text-slate-600">{cat}</td>
-                          <td className="py-2.5 px-4 tabular-nums text-slate-600">${p.costPrice.toFixed(2)}</td>
-                          <td className="py-2.5 px-4 tabular-nums font-semibold text-slate-800">${p.sellingPrice.toFixed(2)}</td>
-                          <td className="py-2.5 px-4 tabular-nums font-bold text-slate-900">{p.currentStock} {p.unit}</td>
-                          <td className="py-2.5 px-4 tabular-nums text-slate-500">{p.reorderLevel}</td>
-                          <td className="py-2.5 px-4 text-right font-bold text-emerald-700 tabular-nums">${val.toFixed(2)}</td>
+                          <td className="py-2.5 px-4 text-slate-600 text-xs">{cat}</td>
+                          <td className="py-2.5 px-4 tabular-nums text-slate-600 text-xs">${p.costPrice.toFixed(2)}</td>
+                          <td className="py-2.5 px-4 tabular-nums font-semibold text-slate-800 text-xs">${p.sellingPrice.toFixed(2)}</td>
+                          <td className="py-2.5 px-4 tabular-nums font-bold text-slate-900 text-xs">{p.currentStock} {p.unit}</td>
+                          <td className="py-2.5 px-4 tabular-nums text-slate-500 text-xs">{p.reorderLevel}</td>
+                          <td className="py-2.5 px-4 text-right font-bold text-emerald-700 tabular-nums text-sm">${val.toFixed(2)}</td>
                         </tr>
                       );
                     })}
@@ -945,9 +898,9 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
               )}
 
               {reportType === 'purchasing' && (
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-sm text-left">
                   <thead>
-                    <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                    <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold text-xs">
                       <th className="py-2.5 px-4 font-mono">PO Number</th>
                       <th className="py-2.5 px-4">Supplier</th>
                       <th className="py-2.5 px-4">Issue Date</th>
@@ -957,20 +910,20 @@ export const DashboardReporting: React.FC<DashboardReportingProps> = ({
                       <th className="py-2.5 px-4 text-right">Total Cost</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 text-sm">
                     {orders.map(o => (
-                      <tr key={o.id} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-4 font-mono font-bold text-slate-900">{o.poNumber}</td>
+                      <tr key={o.id} className="h-[52px] hover:bg-slate-50">
+                        <td className="py-2.5 px-4 font-mono font-bold text-slate-900 text-xs">{o.poNumber}</td>
                         <td className="py-2.5 px-4 font-medium text-slate-800">{o.supplierName}</td>
-                        <td className="py-2.5 px-4 text-slate-500 tabular-nums">{o.createdAt}</td>
-                        <td className="py-2.5 px-4 text-slate-500 tabular-nums">{o.expectedDelivery}</td>
-                        <td className="py-2.5 px-4 text-slate-600">{o.items.length} lines</td>
+                        <td className="py-2.5 px-4 text-slate-500 tabular-nums text-xs">{o.createdAt}</td>
+                        <td className="py-2.5 px-4 text-slate-500 tabular-nums text-xs">{o.expectedDelivery}</td>
+                        <td className="py-2.5 px-4 text-slate-600 text-xs">{o.items.length} lines</td>
                         <td className="py-2.5 px-4">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                          <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
                             {o.status}
                           </span>
                         </td>
-                        <td className="py-2.5 px-4 text-right font-bold text-emerald-700 tabular-nums">${o.totalCost.toFixed(2)}</td>
+                        <td className="py-2.5 px-4 text-right font-bold text-emerald-700 tabular-nums text-sm">${o.totalCost.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>

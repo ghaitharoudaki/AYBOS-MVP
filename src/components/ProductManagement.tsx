@@ -6,20 +6,17 @@ import {
   Edit3, 
   Trash2, 
   Barcode, 
-  AlertTriangle,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Filter,
-  CheckCircle2,
-  Eye,
-  PackageSearch,
-  DollarSign,
-  Boxes,
-  RotateCcw
+  AlertTriangle, 
+  X, 
+  ChevronLeft, 
+  ChevronRight, 
+  ArrowUpDown, 
+  ArrowUp, 
+  ArrowDown, 
+  CheckCircle2, 
+  Eye, 
+  PackageSearch, 
+  RotateCcw 
 } from 'lucide-react';
 import { Product, Category, User } from '../types/aybos';
 import { useStore } from '../context/StoreContext';
@@ -32,6 +29,7 @@ interface ProductManagementProps {
   onAddProduct: (product: Omit<Product, 'id'>) => void;
   onUpdateProduct: (product: Product) => void;
   onDeleteProduct?: (id: string) => void;
+  actionTrigger?: { module: string; timestamp: number };
 }
 
 type SortField = 'name' | 'barcode' | 'category' | 'sellingPrice' | 'costPrice' | 'currentStock' | 'status';
@@ -44,7 +42,8 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   currentUser,
   onAddProduct,
   onUpdateProduct,
-  onDeleteProduct
+  onDeleteProduct,
+  actionTrigger
 }) => {
   const store = useStore();
 
@@ -57,9 +56,9 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
-  // Pagination state
+  // Pagination state: Default rows per page = 25
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(10);
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Right-Side Drawer State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -83,7 +82,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   const [stock, setStock] = useState<string>('20');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // RBAC Permission: Only Manager has full create/edit access; other roles (Inventory, Purchasing, Cashier) have read-only access
+  // RBAC Permission: Cashier is read-only; Manager has full access
   const isReadOnly = currentUser.role !== 'MANAGER';
   const isCashier = isReadOnly;
   const canEdit = currentUser.role === 'MANAGER';
@@ -91,18 +90,17 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   // Category Theme Colors for initial avatar tiles
   const getCategoryTheme = (catId: string) => {
     switch (catId) {
-      case 'cat-1': return { bg: 'bg-blue-100 text-blue-700 border-blue-200', tag: 'Dairy' };
-      case 'cat-2': return { bg: 'bg-amber-100 text-amber-800 border-amber-200', tag: 'Bakery' };
-      case 'cat-3': return { bg: 'bg-cyan-100 text-cyan-800 border-cyan-200', tag: 'Beverages' };
-      case 'cat-4': return { bg: 'bg-orange-100 text-orange-800 border-orange-200', tag: 'Pantry' };
-      case 'cat-5': return { bg: 'bg-purple-100 text-purple-800 border-purple-200', tag: 'Snacks' };
-      case 'cat-6': return { bg: 'bg-emerald-100 text-emerald-800 border-emerald-200', tag: 'Produce' };
-      case 'cat-7': return { bg: 'bg-slate-200 text-slate-800 border-slate-300', tag: 'Household' };
-      default: return { bg: 'bg-slate-100 text-slate-700 border-slate-200', tag: 'General' };
+      case 'cat-1': return { bg: 'bg-blue-100 text-blue-700 border-blue-200' };
+      case 'cat-2': return { bg: 'bg-amber-100 text-amber-800 border-amber-200' };
+      case 'cat-3': return { bg: 'bg-cyan-100 text-cyan-800 border-cyan-200' };
+      case 'cat-4': return { bg: 'bg-orange-100 text-orange-800 border-orange-200' };
+      case 'cat-5': return { bg: 'bg-purple-100 text-purple-800 border-purple-200' };
+      case 'cat-6': return { bg: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+      case 'cat-7': return { bg: 'bg-slate-200 text-slate-800 border-slate-300' };
+      default: return { bg: 'bg-slate-100 text-slate-700 border-slate-200' };
     }
   };
 
-  // Trigger feedback notification
   const showFeedback = (message: string, type: 'success' | 'error' = 'success') => {
     setFeedback({ message, type });
     setTimeout(() => setFeedback(null), 3500);
@@ -113,12 +111,18 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
     setCurrentPage(1);
   }, [search, selectedCategory, selectedStatus]);
 
+  // Listen to Top Bar primary action button trigger
+  useEffect(() => {
+    if (actionTrigger?.module === 'PRODUCTS' && actionTrigger.timestamp > 0) {
+      handleOpenAdd();
+    }
+  }, [actionTrigger]);
+
   // Open Drawer for New Product
   const handleOpenAdd = () => {
     if (isCashier) return;
     setEditingProduct(null);
     setName('');
-    // Generate clean EAN-13 sample barcode
     setBarcode(`628100${Math.floor(100000 + Math.random() * 900000)}`);
     setCategoryId(categories[0]?.id || 'cat-1');
     setUnit('PCS');
@@ -145,7 +149,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
     setIsDrawerOpen(true);
   };
 
-  // Close Drawer
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
     setEditingProduct(null);
@@ -165,12 +168,10 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
     const numReorder = parseInt(reorderLevel, 10);
     const numStock = parseInt(stock, 10);
 
-    // 1. Name validation
     if (!trimmedName) {
       errors.name = 'Product name is required.';
     }
 
-    // 2. Barcode validation: Required and Unique
     if (!cleanBarcode) {
       errors.barcode = 'Universal barcode is required.';
     } else {
@@ -179,26 +180,22 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         (!editingProduct || p.id !== editingProduct.id)
       );
       if (barcodeExists) {
-        errors.barcode = `Barcode already belongs to "${barcodeExists.name}" (SKU: ${barcodeExists.sku}).`;
+        errors.barcode = `Barcode already assigned to "${barcodeExists.name}" (SKU: ${barcodeExists.sku}).`;
       }
     }
 
-    // 3. Price validation: Price > 0
     if (isNaN(numPrice) || numPrice <= 0) {
-      errors.sellingPrice = 'Retail price must be strictly greater than $0.00.';
+      errors.sellingPrice = 'Retail price must be greater than $0.00.';
     }
 
-    // 4. Cost validation: Cost >= 0
     if (isNaN(numCost) || numCost < 0) {
       errors.costPrice = 'Cost price cannot be negative.';
     }
 
-    // 5. Margin alert check (Soft or Hard check)
     if (!isNaN(numPrice) && !isNaN(numCost) && numPrice < numCost) {
       errors.sellingPrice = `Retail price ($${numPrice.toFixed(2)}) cannot be lower than cost price ($${numCost.toFixed(2)}).`;
     }
 
-    // 6. Threshold & Stock validation
     if (isNaN(numReorder) || numReorder < 0) {
       errors.reorderLevel = 'Reorder threshold cannot be negative.';
     }
@@ -213,7 +210,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
     }
 
     if (editingProduct) {
-      // Update existing product
       const updated: Product = {
         ...editingProduct,
         name: trimmedName,
@@ -228,7 +224,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
       onUpdateProduct(updated);
       showFeedback(`Product "${trimmedName}" updated successfully.`);
     } else {
-      // Create new product
       const generatedSku = `SKU-${cleanBarcode.slice(-4)}-${Math.floor(10 + Math.random() * 90)}`;
       onAddProduct({
         sku: generatedSku,
@@ -248,7 +243,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
     handleCloseDrawer();
   };
 
-  // Delete product action with confirmation
   const handleConfirmDelete = async () => {
     if (!productToDelete || isCashier) return;
     setIsDeleting(true);
@@ -260,7 +254,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         await productService.delete(productToDelete.id);
         await store.refreshData();
       }
-      showFeedback(`Product "${productToDelete.name}" deleted from catalog.`);
+      showFeedback(`Product "${productToDelete.name}" removed from catalog.`);
     } catch (err) {
       console.error(err);
       showFeedback('Failed to delete product. Please try again.', 'error');
@@ -270,7 +264,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
     }
   };
 
-  // Sorting Helper
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -286,16 +279,13 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
     return products
       .filter(p => {
-        // Search filter
         const matchesSearch = query === '' ||
           p.name.toLowerCase().includes(query) ||
           p.barcode.toLowerCase().includes(query) ||
           p.sku.toLowerCase().includes(query);
 
-        // Category filter
         const matchesCategory = selectedCategory === 'ALL' || p.categoryId === selectedCategory;
 
-        // Status filter
         let matchesStatus = true;
         if (selectedStatus === 'OUT_OF_STOCK') {
           matchesStatus = p.currentStock <= 0;
@@ -339,13 +329,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   const endIndex = Math.min(startIndex + pageSize, totalItems);
   const paginatedProducts = filteredAndSortedProducts.slice(startIndex, endIndex);
 
-  // Live profit calculation for Drawer form
-  const parsedPrice = parseFloat(sellingPrice) || 0;
-  const parsedCost = parseFloat(costPrice) || 0;
-  const liveProfit = parsedPrice - parsedCost;
-  const liveMarginPercent = parsedPrice > 0 ? ((liveProfit / parsedPrice) * 100) : 0;
-
-  // Active filter indicators
   const isFilterActive = search !== '' || selectedCategory !== 'ALL' || selectedStatus !== 'ALL';
 
   const handleClearFilters = () => {
@@ -355,7 +338,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   };
 
   return (
-    <div className="space-y-4 relative">
+    <div className="h-full flex flex-col min-h-0 space-y-3 relative">
       
       {/* Toast Feedback Notification */}
       {feedback && (
@@ -373,47 +356,8 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         </div>
       )}
 
-      {/* Header Bar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-              <Package className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 leading-tight">
-                Product Catalog
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Item directory, barcodes, retail pricing, and inventory thresholds
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* RBAC Notice if Cashier */}
-          {isCashier && (
-            <div className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs flex items-center gap-1.5">
-              <Eye className="w-3.5 h-3.5 text-slate-400" />
-              <span>Read-Only Mode (Cashier RBAC)</span>
-            </div>
-          )}
-
-          {canEdit && (
-            <button
-              onClick={handleOpenAdd}
-              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-xs h-10 active:scale-98"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Product</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Filter and Control Toolbar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+      {/* Filter and Control Toolbar (Height-stable, 14px inputs & labels) */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex-shrink-0 space-y-2.5">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           
           {/* Global Catalog Search Input */}
@@ -423,13 +367,13 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, barcode or SKU..."
-              className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 h-9 transition placeholder:text-slate-400"
+              placeholder="Search by product name, barcode or SKU..."
+              className="w-full pl-9 pr-8 py-1.5 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 h-9 transition placeholder:text-slate-400"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-emerald-500"
                 title="Clear search"
               >
                 <X className="w-4 h-4" />
@@ -440,15 +384,14 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
           {/* Category Filter & Status Filter Controls */}
           <div className="flex flex-wrap items-center gap-2">
             
-            {/* Category Dropdown */}
             <div className="flex items-center gap-1.5">
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:block">
+              <label className="text-sm font-medium text-slate-600 hidden sm:block">
                 Category:
               </label>
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
+                className="px-2.5 py-1 text-sm rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
               >
                 <option value="ALL">All Categories ({products.length})</option>
                 {categories.map(cat => (
@@ -459,15 +402,14 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
               </select>
             </div>
 
-            {/* Status Dropdown */}
             <div className="flex items-center gap-1.5">
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:block">
+              <label className="text-sm font-medium text-slate-600 hidden sm:block">
                 Status:
               </label>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value as StatusFilter)}
-                className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
+                className="px-2.5 py-1 text-sm rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
               >
                 <option value="ALL">All Stock Statuses</option>
                 <option value="IN_STOCK">In Stock (Optimal)</option>
@@ -476,12 +418,11 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
               </select>
             </div>
 
-            {/* Clear Filters Button */}
             {isFilterActive && (
               <button
                 onClick={handleClearFilters}
-                className="px-2.5 py-1.5 rounded-lg text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 font-medium transition flex items-center gap-1 h-9"
-                title="Reset all search queries and filters"
+                className="px-2.5 py-1.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 font-medium transition flex items-center gap-1 h-9"
+                title="Reset all filters"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset</span>
@@ -493,7 +434,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         </div>
 
         {/* Filter Summary & Result Stats */}
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+        <div className="flex items-center justify-between text-[13px] text-slate-500 pt-1.5 border-t border-slate-100">
           <div>
             Showing <strong className="text-slate-800 font-semibold tabular-nums">{totalItems}</strong> {totalItems === 1 ? 'product' : 'products'}
             {isFilterActive && ' (filtered)'}
@@ -507,31 +448,32 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                 setPageSize(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 font-medium text-slate-700 focus:outline-none"
+              className="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 font-medium text-slate-700 focus:outline-none"
             >
               <option value={10}>10</option>
-              <option value={20}>20</option>
+              <option value={25}>25</option>
               <option value={50}>50</option>
+              <option value={100}>100</option>
             </select>
           </div>
         </div>
 
       </div>
 
-      {/* Main Data Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Main Data Table Card: Fills remaining height, internal scroll with sticky header, pinned pagination */}
+      <div className="flex-1 min-h-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+        
         {totalItems === 0 ? (
-          /* Empty State View */
-          <div className="py-16 px-4 text-center">
-            <div className="w-14 h-14 mx-auto rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 mb-3">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 mb-3">
               <PackageSearch className="w-7 h-7" />
             </div>
             <h3 className="text-sm font-bold text-slate-800">
               {isFilterActive ? 'No matching products found' : 'No products in catalog'}
             </h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+            <p className="text-[13px] text-slate-500 mt-1 max-w-md mx-auto">
               {isFilterActive 
-                ? 'We could not find any products matching your active search or filter criteria. Try broadening your parameters.'
+                ? 'We could not find any products matching your active search or filter criteria. Try adjusting your terms.'
                 : 'Your supermarket inventory master catalog is currently empty. Add your first product to begin.'}
             </p>
             <div className="mt-4 flex items-center justify-center gap-2">
@@ -555,13 +497,12 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead>
-                <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold select-none">
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
+                <tr className="text-slate-700 font-semibold select-none text-xs">
                   <th className="py-3 px-4 w-12 text-center">Item</th>
 
-                  {/* Sortable: Name */}
                   <th 
                     onClick={() => handleSort('name')}
                     className="py-3 px-4 cursor-pointer hover:bg-slate-100/70 transition"
@@ -576,12 +517,10 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                     </div>
                   </th>
 
-                  {/* Universal Barcode */}
                   <th className="py-3 px-4">
                     Universal Barcode
                   </th>
 
-                  {/* Sortable: Category */}
                   <th 
                     onClick={() => handleSort('category')}
                     className="py-3 px-4 cursor-pointer hover:bg-slate-100/70 transition"
@@ -596,7 +535,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                     </div>
                   </th>
 
-                  {/* Sortable: Retail Price */}
                   <th 
                     onClick={() => handleSort('sellingPrice')}
                     className="py-3 px-4 cursor-pointer hover:bg-slate-100/70 transition"
@@ -611,7 +549,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                     </div>
                   </th>
 
-                  {/* Sortable: Cost Price */}
                   <th 
                     onClick={() => handleSort('costPrice')}
                     className="py-3 px-4 cursor-pointer hover:bg-slate-100/70 transition"
@@ -626,7 +563,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                     </div>
                   </th>
 
-                  {/* Sortable: Current Stock */}
                   <th 
                     onClick={() => handleSort('currentStock')}
                     className="py-3 px-4 cursor-pointer hover:bg-slate-100/70 transition"
@@ -641,7 +577,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                     </div>
                   </th>
 
-                  {/* Sortable: Status Badge */}
                   <th 
                     onClick={() => handleSort('status')}
                     className="py-3 px-4 text-center cursor-pointer hover:bg-slate-100/70 transition"
@@ -656,14 +591,13 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                     </div>
                   </th>
 
-                  {/* Actions Column */}
                   <th className="py-3 px-4 text-center w-24">
                     Actions
                   </th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-sm">
                 {paginatedProducts.map(p => {
                   const category = categories.find(c => c.id === p.categoryId);
                   const theme = getCategoryTheme(p.categoryId);
@@ -674,27 +608,27 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                     <tr 
                       key={p.id} 
                       onClick={() => handleOpenEdit(p)}
-                      className="hover:bg-slate-50/80 cursor-pointer transition group"
+                      className="h-[52px] hover:bg-slate-50/80 cursor-pointer transition group"
                     >
                       {/* Product Image / Initial Avatar */}
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-2.5 px-4 text-center">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs border ${theme.bg} shadow-2xs`}>
                           {p.name.charAt(0).toUpperCase()}
                         </div>
                       </td>
 
-                      {/* Name & SKU */}
-                      <td className="py-3 px-4">
+                      {/* Name & SKU (Mono ONLY on SKU) */}
+                      <td className="py-2.5 px-4">
                         <div className="font-semibold text-slate-900 group-hover:text-emerald-700 transition leading-snug">
                           {p.name}
                         </div>
-                        <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                        <div className="text-xs font-mono text-slate-400 mt-0.5">
                           {p.sku}
                         </div>
                       </td>
 
                       {/* Barcode (Mono) */}
-                      <td className="py-3 px-4 font-mono text-slate-600 text-xs whitespace-nowrap">
+                      <td className="py-2.5 px-4 font-mono text-slate-600 text-xs whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <Barcode className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                           <span>{p.barcode}</span>
@@ -702,47 +636,47 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                       </td>
 
                       {/* Category Chip */}
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-medium border border-slate-200">
+                      <td className="py-2.5 px-4 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200">
                           {category?.name || 'General'}
                         </span>
                       </td>
 
-                      {/* Retail Price */}
-                      <td className="py-3 px-4 tabular-nums font-bold text-emerald-700 text-sm whitespace-nowrap">
+                      {/* Retail Price (Inter with tabular-nums) */}
+                      <td className="py-2.5 px-4 tabular-nums font-bold text-emerald-700 text-sm whitespace-nowrap">
                         ${p.sellingPrice.toFixed(2)}
                       </td>
 
                       {/* Cost Price */}
-                      <td className="py-3 px-4 tabular-nums text-slate-600 whitespace-nowrap">
+                      <td className="py-2.5 px-4 tabular-nums text-slate-600 whitespace-nowrap text-sm">
                         ${p.costPrice.toFixed(2)}
                       </td>
 
                       {/* Stock Level */}
-                      <td className="py-3 px-4 tabular-nums font-semibold whitespace-nowrap">
+                      <td className="py-2.5 px-4 tabular-nums font-semibold whitespace-nowrap text-sm">
                         <div className="flex items-center gap-1.5">
                           <span className="text-slate-900 font-bold">{p.currentStock}</span>
-                          <span className="text-slate-400 text-[11px]">{p.unit}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">
+                          <span className="text-slate-400 text-xs font-normal">{p.unit}</span>
+                          <span className="text-xs text-slate-400 font-normal">
                             (Min: {p.reorderLevel})
                           </span>
                         </div>
                       </td>
 
-                      {/* Status Badge (In Stock / Low / Out) */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                      {/* Status Badge */}
+                      <td className="py-2.5 px-4 text-center whitespace-nowrap">
                         {isOutOfStock ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
                             <span>Out of Stock</span>
                           </span>
                         ) : isLowStock ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                             <span>Low ({p.currentStock} left)</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             <span>In Stock</span>
                           </span>
@@ -750,23 +684,23 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                       </td>
 
                       {/* Action Buttons */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="py-2.5 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           {canEdit ? (
                             <>
                               <button
                                 onClick={() => handleOpenEdit(p)}
-                                className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition"
+                                className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition focus-visible:outline-2 focus-visible:outline-emerald-500"
                                 title="Edit product"
                               >
-                                <Edit3 className="w-3.5 h-3.5" />
+                                <Edit3 className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => setProductToDelete(p)}
-                                className="p-1.5 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-md transition"
+                                className="p-1.5 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-md transition focus-visible:outline-2 focus-visible:outline-red-500"
                                 title="Delete product"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </>
                           ) : (
@@ -775,7 +709,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                               className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-md transition"
                               title="View details"
                             >
-                              <Eye className="w-3.5 h-3.5" />
+                              <Eye className="w-4 h-4" />
                             </button>
                           )}
                         </div>
@@ -789,9 +723,9 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
           </div>
         )}
 
-        {/* Pagination Controls */}
+        {/* Pinned Pagination Bar at the bottom of the card */}
         {totalItems > 0 && (
-          <div className="bg-slate-50 border-t border-slate-200 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+          <div className="flex-shrink-0 bg-slate-50 border-t border-slate-200 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
             <div>
               Showing <strong className="text-slate-900 font-semibold tabular-nums">{startIndex + 1}</strong> to{' '}
               <strong className="text-slate-900 font-semibold tabular-nums">{endIndex}</strong> of{' '}
@@ -808,7 +742,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                 <span className="hidden sm:inline">Previous</span>
               </button>
 
-              {/* Page numbers */}
               <div className="flex items-center gap-1">
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                   .filter(p => p === 1 || p === totalPages || Math.abs(p - validCurrentPage) <= 1)
@@ -852,7 +785,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
          ======================================================== */}
       {isDrawerOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden" dir="ltr">
-          {/* Backdrop */}
           <div 
             onClick={handleCloseDrawer}
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
@@ -861,7 +793,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
           <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
             <div className="w-screen max-w-md bg-white border-l border-slate-200 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
               
-              {/* Drawer Header */}
               <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 flex-shrink-0">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold">
@@ -875,7 +806,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                           ? 'Edit Product' 
                           : 'Register New Product'}
                     </h3>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-xs text-slate-400">
                       {editingProduct ? `SKU: ${editingProduct.sku}` : 'Fill in the catalog specification'}
                     </p>
                   </div>
@@ -890,10 +821,8 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                 </button>
               </div>
 
-              {/* Drawer Form Body */}
-              <form onSubmit={handleSaveProduct} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+              <form onSubmit={handleSaveProduct} className="flex-1 overflow-y-auto p-6 space-y-4 text-sm">
                 
-                {/* Read-only role alert for non-manager roles */}
                 {isReadOnly && (
                   <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600" />
@@ -903,7 +832,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
                 {/* 1. Product Name */}
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
+                  <label className="block text-slate-700 font-semibold mb-1 text-sm">
                     Product Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -915,21 +844,21 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                       if (formErrors.name) setFormErrors(prev => ({ ...prev, name: '' }));
                     }}
                     placeholder="e.g. Almarai Full Cream Fresh Milk 1L"
-                    className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 transition ${
+                    className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 transition ${
                       formErrors.name ? 'border-red-400 bg-red-50/50' : 'border-slate-300 bg-white'
                     } disabled:bg-slate-100 disabled:text-slate-500`}
                   />
                   {formErrors.name && (
-                    <p className="text-[11px] text-red-600 mt-1 font-medium">{formErrors.name}</p>
+                    <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.name}</p>
                   )}
                 </div>
 
                 {/* 2. Barcode & SKU */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm flex items-center justify-between">
                       <span>Barcode <span className="text-red-500">*</span></span>
-                      <span className="text-[10px] text-slate-400 font-mono">EAN-13</span>
+                      <span className="text-xs text-slate-400 font-mono">EAN-13</span>
                     </label>
                     <input
                       type="text"
@@ -940,24 +869,24 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                         if (formErrors.barcode) setFormErrors(prev => ({ ...prev, barcode: '' }));
                       }}
                       placeholder="628100123456"
-                      className={`w-full px-3 py-2 rounded-lg border font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 transition ${
+                      className={`w-full px-3 py-2 rounded-lg border font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 transition ${
                         formErrors.barcode ? 'border-red-400 bg-red-50/50' : 'border-slate-300 bg-white'
                       } disabled:bg-slate-100 disabled:text-slate-500`}
                     />
                     {formErrors.barcode && (
-                      <p className="text-[11px] text-red-600 mt-1 font-medium leading-tight">{formErrors.barcode}</p>
+                      <p className="text-xs text-red-600 mt-1 font-medium leading-tight">{formErrors.barcode}</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm">
                       SKU Code
                     </label>
                     <input
                       type="text"
                       disabled
                       value={editingProduct ? editingProduct.sku : 'Auto-generated'}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 font-mono text-xs bg-slate-100 text-slate-500 h-9"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 font-mono text-sm bg-slate-100 text-slate-500 h-9"
                     />
                   </div>
                 </div>
@@ -965,14 +894,14 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                 {/* 3. Category & Unit */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm">
                       Category <span className="text-red-500">*</span>
                     </label>
                     <select
                       disabled={isCashier}
                       value={categoryId}
                       onChange={(e) => setCategoryId(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 disabled:bg-slate-100"
+                      className="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 disabled:bg-slate-100"
                     >
                       {categories.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
@@ -981,87 +910,76 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm">
                       Unit of Measure <span className="text-red-500">*</span>
                     </label>
                     <select
                       disabled={isCashier}
                       value={unit}
                       onChange={(e) => setUnit(e.target.value as any)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 disabled:bg-slate-100"
+                      className="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 disabled:bg-slate-100"
                     >
                       <option value="PCS">Piece (PCS)</option>
-                      <option value="PACK">Pack / Bundle (PACK)</option>
                       <option value="KG">Kilogram (KG)</option>
-                      <option value="BOX">Case / Box (BOX)</option>
+                      <option value="PACK">Pack (PACK)</option>
+                      <option value="BOX">Box / Carton (BOX)</option>
                     </select>
                   </div>
                 </div>
 
-                {/* 4. Pricing (Cost & Selling Price) */}
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  <div className="font-semibold text-slate-800 flex items-center justify-between">
-                    <span>Pricing & Profit Margins</span>
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                      liveProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      Margin: {liveMarginPercent.toFixed(1)}% (${liveProfit.toFixed(2)})
-                    </span>
+                {/* 4. Cost & Retail Prices */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm">
+                      Cost Price ($) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      disabled={isCashier}
+                      value={costPrice}
+                      onChange={(e) => {
+                        setCostPrice(e.target.value);
+                        if (formErrors.costPrice) setFormErrors(prev => ({ ...prev, costPrice: '' }));
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg border tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 bg-white ${
+                        formErrors.costPrice ? 'border-red-400 bg-red-50/50' : 'border-slate-300'
+                      } disabled:bg-slate-100`}
+                    />
+                    {formErrors.costPrice && (
+                      <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.costPrice}</p>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-700 font-semibold mb-1">
-                        Cost Price ($) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        disabled={isCashier}
-                        value={costPrice}
-                        onChange={(e) => {
-                          setCostPrice(e.target.value);
-                          if (formErrors.costPrice) setFormErrors(prev => ({ ...prev, costPrice: '' }));
-                        }}
-                        className={`w-full px-3 py-2 rounded-lg border tabular-nums text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 bg-white ${
-                          formErrors.costPrice ? 'border-red-400 bg-red-50/50' : 'border-slate-300'
-                        } disabled:bg-slate-100`}
-                      />
-                      {formErrors.costPrice && (
-                        <p className="text-[11px] text-red-600 mt-1 font-medium">{formErrors.costPrice}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-semibold mb-1">
-                        Retail Price ($) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        disabled={isCashier}
-                        value={sellingPrice}
-                        onChange={(e) => {
-                          setSellingPrice(e.target.value);
-                          if (formErrors.sellingPrice) setFormErrors(prev => ({ ...prev, sellingPrice: '' }));
-                        }}
-                        className={`w-full px-3 py-2 rounded-lg border tabular-nums text-xs font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 bg-white ${
-                          formErrors.sellingPrice ? 'border-red-400 bg-red-50/50' : 'border-slate-300'
-                        } disabled:bg-slate-100`}
-                      />
-                      {formErrors.sellingPrice && (
-                        <p className="text-[11px] text-red-600 mt-1 font-medium">{formErrors.sellingPrice}</p>
-                      )}
-                    </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm">
+                      Retail Price ($) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      disabled={isCashier}
+                      value={sellingPrice}
+                      onChange={(e) => {
+                        setSellingPrice(e.target.value);
+                        if (formErrors.sellingPrice) setFormErrors(prev => ({ ...prev, sellingPrice: '' }));
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg border tabular-nums text-sm font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 bg-white ${
+                        formErrors.sellingPrice ? 'border-red-400 bg-red-50/50' : 'border-slate-300'
+                      } disabled:bg-slate-100`}
+                    />
+                    {formErrors.sellingPrice && (
+                      <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.sellingPrice}</p>
+                    )}
                   </div>
                 </div>
 
                 {/* 5. Inventory Stock & Reorder Threshold */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm">
                       {editingProduct ? 'Current On-Hand Stock' : 'Initial Stock Quantity'} <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1073,17 +991,17 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                         setStock(e.target.value);
                         if (formErrors.stock) setFormErrors(prev => ({ ...prev, stock: '' }));
                       }}
-                      className={`w-full px-3 py-2 rounded-lg border tabular-nums text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 ${
+                      className={`w-full px-3 py-2 rounded-lg border tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 ${
                         formErrors.stock ? 'border-red-400 bg-red-50/50' : 'border-slate-300 bg-white'
                       } disabled:bg-slate-100`}
                     />
                     {formErrors.stock && (
-                      <p className="text-[11px] text-red-600 mt-1 font-medium">{formErrors.stock}</p>
+                      <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.stock}</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm">
                       Reorder Threshold <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1095,12 +1013,12 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                         setReorderLevel(e.target.value);
                         if (formErrors.reorderLevel) setFormErrors(prev => ({ ...prev, reorderLevel: '' }));
                       }}
-                      className={`w-full px-3 py-2 rounded-lg border tabular-nums text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 ${
+                      className={`w-full px-3 py-2 rounded-lg border tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 ${
                         formErrors.reorderLevel ? 'border-red-400 bg-red-50/50' : 'border-slate-300 bg-white'
                       } disabled:bg-slate-100`}
                     />
                     {formErrors.reorderLevel && (
-                      <p className="text-[11px] text-red-600 mt-1 font-medium">{formErrors.reorderLevel}</p>
+                      <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.reorderLevel}</p>
                     )}
                   </div>
                 </div>
@@ -1110,7 +1028,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                   <button
                     type="button"
                     onClick={handleCloseDrawer}
-                    className="px-4 py-2 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition h-10"
+                    className="px-4 py-2 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition h-10"
                   >
                     {isCashier ? 'Close' : 'Cancel'}
                   </button>
@@ -1118,7 +1036,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                   {!isCashier && (
                     <button
                       type="submit"
-                      className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition h-10 active:scale-98"
+                      className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-xs transition h-10 active:scale-98"
                     >
                       {editingProduct ? 'Save Changes' : 'Register Product'}
                     </button>
@@ -1132,9 +1050,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         </div>
       )}
 
-      {/* ========================================================
-          DELETE CONFIRMATION MODAL
-         ======================================================== */}
+      {/* Delete Confirmation Modal */}
       {productToDelete && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-slate-200 animate-in zoom-in-95 duration-150">
@@ -1146,15 +1062,15 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                 <h3 className="font-bold text-slate-900 text-sm">
                   Delete Product Confirmation
                 </h3>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                <p className="text-[13px] text-slate-600 mt-1 leading-relaxed">
                   Are you sure you want to delete <strong className="text-slate-900 font-semibold">{productToDelete.name}</strong>?
                 </p>
-                <div className="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-500 space-y-1">
-                  <div>SKU: <strong className="font-mono text-slate-700">{productToDelete.sku}</strong></div>
-                  <div>Barcode: <strong className="font-mono text-slate-700">{productToDelete.barcode}</strong></div>
-                  <div>On-hand stock: <strong className="tabular-nums text-slate-700">{productToDelete.currentStock} {productToDelete.unit}</strong></div>
+                <div className="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
+                  <div>SKU: <strong className="font-mono text-slate-800">{productToDelete.sku}</strong></div>
+                  <div>Barcode: <strong className="font-mono text-slate-800">{productToDelete.barcode}</strong></div>
+                  <div>On-hand stock: <strong className="tabular-nums text-slate-800">{productToDelete.currentStock} {productToDelete.unit}</strong></div>
                 </div>
-                <p className="text-[11px] text-red-600 mt-2 font-medium">
+                <p className="text-xs text-red-600 mt-2 font-medium">
                   Warning: This action will permanently remove this item from the active master catalog.
                 </p>
               </div>
@@ -1165,7 +1081,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                 type="button"
                 onClick={() => setProductToDelete(null)}
                 disabled={isDeleting}
-                className="px-4 py-2 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition h-9"
+                className="px-4 py-2 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition h-9"
               >
                 Cancel
               </button>
@@ -1173,7 +1089,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
-                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs shadow-xs transition flex items-center gap-1.5 h-9"
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-sm shadow-xs transition flex items-center gap-1.5 h-9"
               >
                 {isDeleting ? (
                   <span>Deleting...</span>

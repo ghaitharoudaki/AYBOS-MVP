@@ -39,8 +39,10 @@ interface StoreContextType {
   adjustStock: (productId: string, delta: number, type: MovementType, notes: string) => Promise<void>;
   addProduct: (productData: Omit<Product, 'id'>) => Promise<Product>;
   updateProduct: (product: Product) => Promise<Product>;
+  deleteProduct: (id: string) => Promise<boolean>;
   addSupplier: (supplierData: Omit<Supplier, 'id'>) => Promise<Supplier>;
   updateSupplier: (supplier: Supplier) => Promise<Supplier>;
+  deleteSupplier: (id: string) => Promise<boolean>;
   createPO: (poData: Omit<PurchaseOrder, 'id' | 'poNumber' | 'createdAt'>) => Promise<PurchaseOrder>;
   approvePO: (poId: string) => Promise<void>;
   addUser: (userData: Omit<User, 'id'>) => Promise<User>;
@@ -49,6 +51,11 @@ interface StoreContextType {
   switchUser: (user: User) => void;
   resetToSeeds: () => void;
   refreshData: () => Promise<void>;
+
+  // Global Toasts
+  toasts: { id: string; message: string; type: 'success' | 'info' | 'warning' | 'error' }[];
+  showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
+  dismissToast: (id: string) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -99,6 +106,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     refreshData();
   }, [refreshData]);
 
+  // Global Toasts State
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'info' | 'warning' | 'error' }[]>([]);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
+    const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    setToasts(prev => [...prev.slice(-3), { id, message, type }]); // Keep last 4 max
+    setTimeout(() => {
+      dismissToast(id);
+    }, 3800);
+  }, [dismissToast]);
+
   // Derived low stock counter for notifications
   const lowStockCount = products.filter(p => p.currentStock <= p.reorderLevel).length;
 
@@ -111,6 +133,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(result.updatedProducts);
     setMovements(prev => [...result.movements, ...prev]);
 
+    const num = result.sale.receiptNumber || result.sale.saleNumber || receipt.receiptNumber || receipt.saleNumber || '#0001';
+    showToast(`Sale ${num} completed successfully (${result.sale.paymentMethod || 'CASH'}).`, 'success');
     return result.sale;
   };
 
@@ -124,6 +148,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setOrders(prev => prev.map(o => o.id === poId ? result.order : o));
     setProducts(result.updatedProducts);
     setMovements(prev => [...result.movements, ...prev]);
+
+    showToast(`Goods received for ${result.order.poNumber}. Inventory balances updated.`, 'success');
   };
 
   // Adjust stock for loss, damage, expiry, or manual audit corrections
@@ -143,6 +169,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setProducts(prev => prev.map(p => p.id === productId ? result.updatedProduct : p));
     setMovements(prev => [result.movement, ...prev]);
+
+    showToast(`Stock movement recorded (${type}: ${delta > 0 ? `+${delta}` : delta} units).`, 'success');
   };
 
   // Product catalog management
@@ -163,26 +191,50 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setMovements(prev => [movement, ...prev]);
     }
 
+    showToast(`Product "${newProd.name}" added to catalog.`, 'success');
     return newProd;
   };
 
   const updateProduct = async (product: Product): Promise<Product> => {
     const updated = await productService.update(product.id, product);
     setProducts(prev => prev.map(p => p.id === product.id ? updated : p));
+    showToast(`Product "${updated.name}" updated successfully.`, 'success');
     return updated;
+  };
+
+  const deleteProduct = async (id: string): Promise<boolean> => {
+    const target = products.find(p => p.id === id);
+    const success = await productService.delete(id);
+    if (success) {
+      setProducts(prev => prev.filter(p => p.id !== id));
+      showToast(`Product "${target?.name || id}" removed from catalog.`, 'success');
+    }
+    return success;
   };
 
   // Supplier management
   const addSupplier = async (supplierData: Omit<Supplier, 'id'>): Promise<Supplier> => {
     const newSup = await supplierService.create(supplierData);
     setSuppliers(prev => [newSup, ...prev]);
+    showToast(`Supplier "${newSup.name}" registered.`, 'success');
     return newSup;
   };
 
   const updateSupplier = async (supplier: Supplier): Promise<Supplier> => {
     const updated = await supplierService.update(supplier.id, supplier);
     setSuppliers(prev => prev.map(s => s.id === supplier.id ? updated : s));
+    showToast(`Supplier "${updated.name}" updated.`, 'success');
     return updated;
+  };
+
+  const deleteSupplier = async (id: string): Promise<boolean> => {
+    const target = suppliers.find(s => s.id === id);
+    const success = await supplierService.delete(id);
+    if (success) {
+      setSuppliers(prev => prev.filter(s => s.id !== id));
+      showToast(`Supplier "${target?.name || id}" deleted.`, 'success');
+    }
+    return success;
   };
 
   // Purchase order creation and approval
@@ -191,6 +243,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   ): Promise<PurchaseOrder> => {
     const newPO = await purchaseOrderService.create(poData);
     setOrders(prev => [newPO, ...prev]);
+    showToast(`Purchase order ${newPO.poNumber} created as Draft.`, 'success');
     return newPO;
   };
 
@@ -201,12 +254,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       `${currentUser.name} (${currentUser.role})`
     );
     setOrders(prev => prev.map(o => o.id === poId ? updated : o));
+    showToast(`Purchase order ${updated.poNumber} approved & dispatched to supplier.`, 'success');
   };
 
   // User & RBAC management
   const addUser = async (userData: Omit<User, 'id'>): Promise<User> => {
     const newUser = await authService.createUser(userData);
     setUsers(prev => [...prev, newUser]);
+    showToast(`Staff account for "${newUser.name}" created.`, 'success');
     return newUser;
   };
 
@@ -216,22 +271,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (currentUser.id === user.id) {
       setCurrentUser(updated);
     }
+    showToast(`Staff account "${updated.name}" updated.`, 'success');
     return updated;
   };
 
   const toggleUserStatus = async (userId: string): Promise<void> => {
+    const target = users.find(u => u.id === userId);
     const updated = await authService.toggleUserStatus(userId);
     setUsers(prev => prev.map(u => u.id === userId ? updated : u));
+    showToast(`Account status for "${target?.name || userId}" changed to ${updated.status}.`, 'info');
   };
 
   const switchUser = (user: User): void => {
     setCurrentUser(user);
     StorageRepository.setCurrentUserId(user.id);
+    showToast(`Switched active user session to ${user.name} (${user.role}).`, 'info');
   };
 
   const resetToSeeds = (): void => {
     StorageRepository.resetToSeeds();
     refreshData();
+    showToast('All data restored to realistic store seeds.', 'info');
   };
 
   return (
@@ -252,8 +312,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         adjustStock,
         addProduct,
         updateProduct,
+        deleteProduct,
         addSupplier,
         updateSupplier,
+        deleteSupplier,
         createPO,
         approvePO,
         addUser,
@@ -261,7 +323,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toggleUserStatus,
         switchUser,
         resetToSeeds,
-        refreshData
+        refreshData,
+        toasts,
+        showToast,
+        dismissToast
       }}
     >
       {children}

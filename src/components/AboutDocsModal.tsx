@@ -39,10 +39,10 @@ export const AboutDocsModal: React.FC<AboutDocsModalProps> = ({ isOpen, onClose 
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                   Engineering Specification
                 </span>
-                <span className="text-[12px] text-slate-400">AYBOS v1.0.0 Architecture</span>
+                <span className="text-xs text-slate-400">AYBOS v1.0.0 Architecture</span>
               </div>
               <h2 className="text-base font-semibold tracking-tight text-white">
                 About & System Documentation
@@ -135,7 +135,7 @@ export const AboutDocsModal: React.FC<AboutDocsModalProps> = ({ isOpen, onClose 
             <div className="space-y-6">
               <div className="bg-gradient-to-br from-[#0F172A] to-slate-900 text-white rounded-xl p-6 shadow-xs border border-slate-800">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded border border-emerald-800/50">
+                  <span className="text-xs font-semibold text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded border border-emerald-800/50">
                     Retail Operations Architecture
                   </span>
                   <span className="text-xs text-slate-400 font-mono">{ACADEMIC_REPORT_DATA.academicYear}</span>
@@ -149,19 +149,19 @@ export const AboutDocsModal: React.FC<AboutDocsModalProps> = ({ isOpen, onClose 
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-950/50 p-3.5 rounded-lg border border-slate-800">
                   <div>
-                    <div className="text-slate-400 text-[11px]">Primary Pattern:</div>
+                    <div className="text-slate-400 text-xs">Primary Pattern:</div>
                     <div className="font-semibold text-white">Layered Monolith (3NF)</div>
                   </div>
                   <div>
-                    <div className="text-slate-400 text-[11px]">Methodology:</div>
+                    <div className="text-slate-400 text-xs">Methodology:</div>
                     <div className="font-semibold text-white">Agile Scrum + XP</div>
                   </div>
                   <div>
-                    <div className="text-slate-400 text-[11px]">Delivery Cadence:</div>
+                    <div className="text-slate-400 text-xs">Delivery Cadence:</div>
                     <div className="font-semibold text-white">14 Weeks (7 Sprints)</div>
                   </div>
                   <div>
-                    <div className="text-slate-400 text-[11px]">Core Scope:</div>
+                    <div className="text-slate-400 text-xs">Core Scope:</div>
                     <div className="font-semibold text-emerald-400">7 Operational Modules</div>
                   </div>
                 </div>
@@ -220,7 +220,7 @@ export const AboutDocsModal: React.FC<AboutDocsModalProps> = ({ isOpen, onClose 
                     <Award className="w-4 h-4 text-emerald-600" />
                     <span>Measured Empirical Key Performance Indicators</span>
                   </h3>
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                     All Targets Surpassed
                   </span>
                 </div>
@@ -241,7 +241,7 @@ export const AboutDocsModal: React.FC<AboutDocsModalProps> = ({ isOpen, onClose 
                           <td className="py-2 px-3 text-slate-600">{kpi.target}</td>
                           <td className="py-2 px-3 font-mono font-bold text-emerald-700">{kpi.achieved}</td>
                           <td className="py-2 px-3">
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                               {kpi.status}
                             </span>
                           </td>
@@ -262,7 +262,7 @@ export const AboutDocsModal: React.FC<AboutDocsModalProps> = ({ isOpen, onClose 
                   <span>AYBOS 14-Week Gantt Schedule</span>
                   <span className="text-slate-400 font-normal">W01 – W14</span>
                 </div>
-                <pre className="text-slate-300 leading-relaxed text-[11px]">
+                <pre className="text-slate-300 leading-relaxed text-xs">
 {`Activity / Task Name           W01 W02 W03 W04 W05 W06 W07 W08 W09 W10 W11 W12 W13 W14  Dependencies
 --------------------------------------------------------------------------------------------------
 [Sprint 0] Tooling & CI/CD      [===]                                                 None
@@ -323,7 +323,7 @@ export const AboutDocsModal: React.FC<AboutDocsModalProps> = ({ isOpen, onClose 
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="py-2.5 px-3 font-mono font-bold text-slate-700">{r.id}</td>
                         <td className="py-2.5 px-3">
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                          <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
                             {r.category}
                           </span>
                         </td>
@@ -331,7 +331,7 @@ export const AboutDocsModal: React.FC<AboutDocsModalProps> = ({ isOpen, onClose 
                         <td className="py-2.5 px-2 text-center font-mono">{r.likelihood}</td>
                         <td className="py-2.5 px-2 text-center font-mono">{r.impact}</td>
                         <td className="py-2.5 px-2 text-center">
-                          <span className={`px-2 py-0.5 rounded text-[11px] font-bold font-mono ${
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold font-mono ${
                             r.level === 'High' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
                           }`}>
                             {r.score}
@@ -352,17 +352,17 @@ export const AboutDocsModal: React.FC<AboutDocsModalProps> = ({ isOpen, onClose 
               {ACADEMIC_REPORT_DATA.useCases.map((uc) => (
                 <div key={uc.id} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
                       {uc.id}
                     </span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                    <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
                       uc.priority === 'Must Have' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
                     }`}>
                       {uc.priority}
                     </span>
                   </div>
                   <h4 className="text-xs font-bold text-slate-900 mb-1">{uc.name}</h4>
-                  <div className="text-[11px] text-slate-500 mb-1">Actor: <span className="font-semibold text-slate-700">{uc.actor}</span></div>
+                  <div className="text-xs text-slate-500 mb-1">Actor: <span className="font-semibold text-slate-700">{uc.actor}</span></div>
                   <p className="text-xs text-slate-600 leading-relaxed">{uc.desc}</p>
                 </div>
               ))}

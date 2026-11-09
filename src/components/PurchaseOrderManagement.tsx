@@ -1,26 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ClipboardList, 
   Plus, 
   CheckCircle, 
   PackageCheck, 
   FileCheck2, 
-  Truck, 
   Search, 
   X, 
   Calendar, 
   AlertTriangle, 
   CheckCircle2, 
-  ArrowRight, 
   Sparkles, 
   Trash2, 
-  Clock, 
-  Building2, 
-  DollarSign, 
-  Layers, 
-  RotateCcw,
-  Eye,
-  Send
+  RotateCcw, 
+  Eye, 
+  Send,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { PurchaseOrder, POItem, Supplier, Product, User, POStatus } from '../types/aybos';
 
@@ -32,6 +28,7 @@ interface PurchaseOrderManagementProps {
   onCreatePO: (order: Omit<PurchaseOrder, 'id' | 'poNumber' | 'createdAt'>) => void;
   onApprovePO: (poId: string) => void;
   onReceivePO: (poId: string, receivedItems: { productId: string; receivedQty: number }[]) => void;
+  actionTrigger?: { module: string; timestamp: number };
 }
 
 export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = ({
@@ -41,11 +38,16 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
   currentUser,
   onCreatePO,
   onApprovePO,
-  onReceivePO
+  onReceivePO,
+  actionTrigger
 }) => {
   // Search & Status Filters
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+
+  // Pagination (Default rows per page = 25)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Modal / Drawer states
   const [isNewPODrawerOpen, setIsNewPODrawerOpen] = useState(false);
@@ -80,7 +82,14 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Find all low-stock / critical products in catalog (at or below reorderLevel)
+  // Listen to Top Bar primary action button trigger
+  useEffect(() => {
+    if (actionTrigger?.module === 'PURCHASING' && actionTrigger.timestamp > 0) {
+      handleOpenNewPO();
+    }
+  }, [actionTrigger]);
+
+  // Find all low-stock / critical products in catalog
   const lowStockCatalogProducts = useMemo(() => {
     return products.filter(p => p.currentStock <= p.reorderLevel);
   }, [products]);
@@ -91,7 +100,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     const defaultSup = suppliers[0]?.id || '';
     setSelectedSupplierId(defaultSup);
     
-    // Initial suggested line item: pick first low stock item if available, otherwise first product
     const firstSuggested = lowStockCatalogProducts[0] || products[0];
     if (firstSuggested) {
       const suggestedQty = Math.max(10, (firstSuggested.reorderLevel * 2) - firstSuggested.currentStock);
@@ -114,7 +122,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     const targetProd = productId ? products.find(p => p.id === productId) : products[0];
     if (!targetProd) return;
 
-    // Avoid duplicate lines if possible
     const existingIndex = poLines.findIndex(l => l.productId === targetProd.id);
     if (existingIndex >= 0) {
       setPoLines(prev => prev.map((l, i) => i === existingIndex ? { ...l, orderedQty: l.orderedQty + 10 } : l));
@@ -183,12 +190,10 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     setPoLines(prev => prev.map((item, i) => i === idx ? { ...item, unitCost: Math.max(0, cost) } : item));
   };
 
-  // Calculate Subtotal & Total
   const calculatedGrandTotal = useMemo(() => {
     return poLines.reduce((sum, item) => sum + (item.orderedQty * item.unitCost), 0);
   }, [poLines]);
 
-  // Submit New PO
   const handleCreatePOSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreate) return;
@@ -219,7 +224,7 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     onCreatePO({
       supplierId: sup.id,
       supplierName: sup.name,
-      status: 'SENT', // Transitions directly to SENT ready for warehouse dock receipt
+      status: 'SENT',
       items: poItems,
       totalCost: Number(calculatedGrandTotal.toFixed(2)),
       expectedDelivery: expectedDeliveryDate,
@@ -231,7 +236,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     showToast(`Purchase order registered & sent to ${sup.name}.`);
   };
 
-  // Open "Mark as Received" Goods Inwarding Dialog
   const handleOpenReceiveModal = (po: PurchaseOrder) => {
     setReceivingPO(po);
     const initialInputs: Record<string, number> = {};
@@ -243,7 +247,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     setReceivingError(null);
   };
 
-  // Confirm Inwarding of Goods: increases stock & writes RECEIVED ledger entries
   const handleConfirmReceiveSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!receivingPO || !canReceive) return;
@@ -264,7 +267,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     showToast(`Successfully received ${totalArrivedUnits} units for PO ${receivingPO.poNumber}. Stock updated!`);
   };
 
-  // Helper for status stepper
   const getStepperStatus = (status: POStatus): { step: number; label: string } => {
     if (status === 'RECEIVED' || status === 'COMPLETED') {
       return { step: 3, label: 'Received' };
@@ -281,7 +283,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     return { step: 1, label: 'Draft' };
   };
 
-  // Filtered Orders
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
 
@@ -305,8 +306,16 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
     });
   }, [orders, search, statusFilter]);
 
+  // Pagination Calculations
+  const totalItems = filteredOrders.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (validCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
+
   return (
-    <div className="space-y-4 relative">
+    <div className="h-full flex flex-col min-h-0 space-y-3 relative">
       
       {/* Toast Feedback */}
       {toastMessage && (
@@ -316,40 +325,9 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
         </div>
       )}
 
-      {/* Header Bar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-              <ClipboardList className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 leading-tight">
-                Purchase Orders & Receiving
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Vendor procurement workflow: Draft $\rightarrow$ Sent $\rightarrow$ Received dockside check-in
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {canCreate && (
-            <button
-              onClick={handleOpenNewPO}
-              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-xs h-9 active:scale-98"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Purchase Order</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Low-stock Smart Suggestion Alert Strip */}
+      {/* Low-stock Smart Suggestion Alert Strip (Flex-shrink-0) */}
       {lowStockCatalogProducts.length > 0 && (
-        <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 flex-shrink-0">
           <div className="flex items-center gap-2 text-xs">
             <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
             <div>
@@ -364,7 +342,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
             <button
               onClick={() => {
                 handleOpenNewPO();
-                // trigger adding low stock items in drawer
                 setTimeout(() => handleAddAllLowStockItems(), 100);
               }}
               className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition flex items-center gap-1.5 flex-shrink-0 shadow-2xs"
@@ -376,8 +353,8 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
         </div>
       )}
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      {/* Filter and Search Bar (Flex-shrink-0) */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 flex-shrink-0">
         
         {/* Search */}
         <div className="relative flex-1 max-w-md">
@@ -385,9 +362,12 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by PO Number, vendor, or product line..."
-            className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 h-9"
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            placeholder="Search by PO number, supplier, or product line..."
+            className="w-full pl-9 pr-8 py-1.5 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 h-9"
           />
           {search && (
             <button
@@ -401,11 +381,14 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
 
         {/* Status Filter */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:block">Status:</span>
+          <span className="text-sm font-medium text-slate-600 hidden sm:block">Status:</span>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-2.5 py-1 text-sm rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
           >
             <option value="ALL">All PO Statuses ({orders.length})</option>
             <option value="DRAFT">Draft / Pending</option>
@@ -419,8 +402,9 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
               onClick={() => {
                 setSearch('');
                 setStatusFilter('ALL');
+                setCurrentPage(1);
               }}
-              className="px-2.5 py-1.5 rounded-lg text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 font-medium transition flex items-center gap-1 h-9"
+              className="px-2.5 py-1.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 font-medium transition flex items-center gap-1 h-9"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset</span>
@@ -430,12 +414,12 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
 
       </div>
 
-      {/* Orders List Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead>
-              <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold select-none">
+      {/* Orders List Table Card: Internal scroll, sticky header, 52px rows, pinned pagination */}
+      <div className="flex-1 min-h-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full text-sm text-left border-collapse">
+            <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
+              <tr className="text-slate-700 font-semibold select-none text-xs">
                 <th className="py-3 px-4 font-mono">PO Number</th>
                 <th className="py-3 px-4">Supplier / Vendor</th>
                 <th className="py-3 px-4">Delivery / Created</th>
@@ -447,15 +431,30 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
-              {filteredOrders.length === 0 ? (
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {paginatedOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
-                    No purchase orders match your criteria.
+                  <td colSpan={8} className="py-14 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
+                        <ClipboardList className="w-6 h-6 stroke-[1.5]" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-800">No purchase orders found</h4>
+                      <p className="text-[13px] text-slate-500 mt-0.5">Try clearing your filters or create a new restocking order.</p>
+                      {canCreate && (
+                        <button
+                          onClick={handleOpenNewPO}
+                          className="mt-3 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center gap-1.5 shadow-2xs focus-visible:outline-2 focus-visible:outline-emerald-500"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Create Purchase Order</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map(po => {
+                paginatedOrders.map(po => {
                   const stepper = getStepperStatus(po.status);
                   const isReceived = po.status === 'RECEIVED' || po.status === 'COMPLETED';
                   const isPartial = po.status === 'PARTIAL' || po.status === 'PARTIALLY_RECEIVED';
@@ -466,95 +465,114 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                   const totalReceivedUnits = (po.items || []).reduce((sum, i) => sum + (i.receivedQty || 0), 0);
 
                   return (
-                    <tr key={po.id} className="hover:bg-slate-50 transition">
+                    <tr key={po.id} className="h-[52px] hover:bg-slate-50 transition">
                       
-                      {/* PO Number */}
-                      <td className="py-3 px-4 font-mono text-slate-800 font-bold whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span>{po.poNumber}</span>
-                        </div>
+                      {/* PO Number (Mono) */}
+                      <td className="py-2.5 px-4 font-mono text-slate-800 font-bold whitespace-nowrap text-xs">
+                        {po.poNumber}
                       </td>
 
-                      {/* Supplier */}
-                      <td className="py-3 px-4 whitespace-nowrap">
+                      {/* Supplier (NO INTERNAL ID) */}
+                      <td className="py-2.5 px-4 whitespace-nowrap">
                         <div className="font-semibold text-slate-900">{po.supplierName}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">ID: {po.supplierId}</div>
                       </td>
 
-                      {/* Delivery / Created */}
-                      <td className="py-3 px-4 whitespace-nowrap text-slate-600">
-                        <div className="flex items-center gap-1 font-mono text-[11px]">
+                      {/* Delivery / Created (Inter with tabular-nums) */}
+                      <td className="py-2.5 px-4 whitespace-nowrap text-slate-600">
+                        <div className="flex items-center gap-1 text-xs tabular-nums">
                           <Calendar className="w-3 h-3 text-slate-400" />
                           <span>Exp: {po.expectedDelivery || '2026-11-15'}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
+                        <div className="text-xs text-slate-400 mt-0.5 tabular-nums">
                           Issued: {po.createdAt.substring(0, 10)}
                         </div>
                       </td>
 
-                      {/* Status Stepper (Draft -> Sent -> Received) */}
-                      <td className="py-3 px-4">
-                        <div className="space-y-1 w-full max-w-[190px]">
-                          {/* 3 Step Indicator Dots */}
+                      {/* Status Stepper (Draft -> Sent -> Received / Partial) */}
+                      <td className="py-2.5 px-4">
+                        <div className="space-y-1 w-full max-w-[210px]">
                           <div className="flex items-center justify-between relative">
-                            {/* Connecting line */}
                             <div className="absolute top-2 left-2 right-2 h-0.5 bg-slate-200 -z-0" />
                             <div 
-                              className="absolute top-2 left-2 h-0.5 bg-emerald-500 transition-all duration-300 -z-0"
-                              style={{ width: `${Math.min(100, Math.max(0, ((stepper.step - 1) / 2) * 100))}%` }}
+                              className={`absolute top-2 left-2 h-0.5 transition-all duration-300 -z-0 ${
+                                isPartial ? 'bg-amber-500' : 'bg-emerald-500'
+                              }`}
+                              style={{ 
+                                width: isPartial 
+                                  ? '80%' 
+                                  : `${Math.min(100, Math.max(0, ((stepper.step - 1) / 2) * 100))}%` 
+                              }}
                             />
 
                             {/* Step 1: Draft */}
                             <div className="flex flex-col items-center relative z-10">
-                              <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                              <div className={`w-4 h-4 rounded-full flex items-center justify-center text-xs font-bold ${
                                 stepper.step >= 1 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
                               }`}>
                                 1
                               </div>
-                              <span className="text-[9px] text-slate-500 mt-0.5">Draft</span>
+                              <span className="text-xs text-slate-500 mt-0.5">Draft</span>
                             </div>
 
                             {/* Step 2: Sent */}
                             <div className="flex flex-col items-center relative z-10">
-                              <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                              <div className={`w-4 h-4 rounded-full flex items-center justify-center text-xs font-bold ${
                                 stepper.step >= 2 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
                               }`}>
                                 2
                               </div>
-                              <span className="text-[9px] text-slate-500 mt-0.5">Sent</span>
+                              <span className="text-xs text-slate-500 mt-0.5">Sent</span>
                             </div>
 
-                            {/* Step 3: Received */}
+                            {/* Step 3: Received (Fully Green) OR Partially Received (Half-filled Amber with ratio e.g. 25/40) */}
                             <div className="flex flex-col items-center relative z-10">
-                              <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                                stepper.step >= 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
-                              }`}>
-                                3
-                              </div>
-                              <span className="text-[9px] text-slate-500 mt-0.5">Received</span>
+                              {isPartial ? (
+                                <>
+                                  <div 
+                                    className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-amber-950 border border-amber-500 overflow-hidden relative shadow-2xs"
+                                    title={`Partially Received: ${totalReceivedUnits}/${totalOrderedUnits} units`}
+                                  >
+                                    {/* Left half amber, right half white */}
+                                    <div className="absolute inset-0 bg-gradient-to-r from-amber-400 via-amber-400 50% to-white 50%" />
+                                    <span className="relative z-10 text-[9px] font-extrabold text-amber-900 leading-none">½</span>
+                                  </div>
+                                  <span className="text-xs text-amber-800 font-semibold mt-0.5 tabular-nums">
+                                    {totalReceivedUnits}/{totalOrderedUnits}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-xs font-bold ${
+                                    stepper.step >= 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                                  }`}>
+                                    3
+                                  </div>
+                                  <span className="text-xs text-slate-500 mt-0.5">Received</span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
                       </td>
 
                       {/* Ordered Items Summary */}
-                      <td className="py-3 px-4 whitespace-nowrap">
+                      <td className="py-2.5 px-4 whitespace-nowrap">
                         <div className="font-medium text-slate-800">
                           {po.items.length} {po.items.length === 1 ? 'line item' : 'line items'}
                         </div>
-                        <div className="text-[11px] text-slate-400 tabular-nums">
+                        <div className="text-xs text-slate-400 tabular-nums">
                           {totalReceivedUnits} / {totalOrderedUnits} units received
                         </div>
                       </td>
 
-                      {/* Total Cost */}
-                      <td className="py-3 px-4 tabular-nums font-bold text-emerald-700 whitespace-nowrap text-sm">
+                      {/* Total Cost (Inter tabular-nums) */}
+                      <td className="py-2.5 px-4 tabular-nums font-bold text-emerald-700 whitespace-nowrap text-sm">
                         ${po.totalCost.toFixed(2)}
                       </td>
 
                       {/* Status Badge */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                      <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border ${
                           isReceived ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
                           isPartial ? 'bg-amber-50 text-amber-800 border-amber-200' :
                           isSent ? 'bg-blue-50 text-blue-700 border-blue-200' :
@@ -572,10 +590,8 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                      <td className="py-2.5 px-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
-                          
-                          {/* Approve if Draft */}
                           {isDraft && canApprove && (
                             <button
                               onClick={() => onApprovePO(po.id)}
@@ -586,7 +602,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                             </button>
                           )}
 
-                          {/* "Mark as Received" button if Sent or Partial */}
                           {(isSent || isPartial) && canReceive && (
                             <button
                               onClick={() => handleOpenReceiveModal(po)}
@@ -597,23 +612,20 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                             </button>
                           )}
 
-                          {/* Completed check badge */}
                           {isReceived && (
-                            <span className="text-slate-400 text-xs font-semibold flex items-center gap-1">
+                            <span className="text-slate-500 text-xs font-semibold flex items-center gap-1">
                               <FileCheck2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Stock Inwarded</span>
+                              <span>Inwarded</span>
                             </span>
                           )}
 
-                          {/* Inspect PO Details */}
                           <button
                             onClick={() => setSelectedPODetails(po)}
                             className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded transition"
                             title="Inspect order details"
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <Eye className="w-4 h-4" />
                           </button>
-
                         </div>
                       </td>
 
@@ -624,6 +636,39 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
             </tbody>
           </table>
         </div>
+
+        {/* Pinned Pagination at the bottom of the card */}
+        {totalItems > 0 && (
+          <div className="flex-shrink-0 bg-slate-50 border-t border-slate-200 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <div>
+              Showing <strong className="text-slate-900 font-semibold tabular-nums">{startIndex + 1}</strong> to{' '}
+              <strong className="text-slate-900 font-semibold tabular-nums">{endIndex}</strong> of{' '}
+              <strong className="text-slate-900 font-semibold tabular-nums">{totalItems}</strong> purchase orders
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={validCurrentPage === 1}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition h-8"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Previous</span>
+              </button>
+              <span className="px-2 text-xs font-semibold text-slate-700 tabular-nums">
+                Page {validCurrentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={validCurrentPage === totalPages}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition h-8"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================
@@ -639,7 +684,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
           <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
             <div className="w-screen max-w-2xl bg-white border-l border-slate-200 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
               
-              {/* Drawer Header */}
               <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 flex-shrink-0">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold">
@@ -647,8 +691,8 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-white">Create Purchase Order</h3>
-                    <p className="text-[11px] text-slate-400">
-                      Restock replenishment workflow (Draft $\rightarrow$ Sent $\rightarrow$ Received)
+                    <p className="text-xs text-slate-400">
+                      Restock replenishment workflow (Draft → Sent → Received)
                     </p>
                   </div>
                 </div>
@@ -661,8 +705,7 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                 </button>
               </div>
 
-              {/* Drawer Form Body */}
-              <form onSubmit={handleCreatePOSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+              <form onSubmit={handleCreatePOSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 text-sm">
                 
                 {newPOError && (
                   <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
@@ -674,13 +717,13 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                 {/* 1. Supplier & Expected Delivery */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm">
                       Choose Supplier / Vendor <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={selectedSupplierId}
                       onChange={(e) => setSelectedSupplierId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9 text-sm"
                     >
                       {suppliers.map(s => (
                         <option key={s.id} value={s.id}>
@@ -691,7 +734,7 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                   </div>
 
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">
+                    <label className="block text-slate-700 font-semibold mb-1 text-sm">
                       Expected Dock Delivery Date <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -699,12 +742,12 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                       required
                       value={expectedDeliveryDate}
                       onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 h-9"
                     />
                   </div>
                 </div>
 
-                {/* 2. Low-Stock Smart Suggestions Strip & "Add all low-stock items" button */}
+                {/* 2. Low-Stock Smart Suggestions Strip */}
                 <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 font-bold text-emerald-900 text-xs">
@@ -715,30 +758,29 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                     <button
                       type="button"
                       onClick={handleAddAllLowStockItems}
-                      className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] transition shadow-2xs flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition shadow-2xs flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3" />
                       <span>Add all low-stock items ({lowStockCatalogProducts.length})</span>
                     </button>
                   </div>
 
-                  <p className="text-[11px] text-emerald-800">
-                    The system prioritizes items currently at or below their safety reorder threshold with automatic target restock quantities.
+                  <p className="text-xs text-emerald-800">
+                    The system prioritizes items currently at or below their safety reorder threshold with automatic restock quantities.
                   </p>
 
-                  {/* Quick Pill Chips of Low Stock Items */}
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {lowStockCatalogProducts.slice(0, 5).map(prod => (
                       <button
                         key={prod.id}
                         type="button"
                         onClick={() => handleAddLineItem(prod.id)}
-                        className="px-2 py-0.5 rounded-full bg-white border border-emerald-300 text-[10px] text-emerald-800 hover:bg-emerald-100 transition flex items-center gap-1"
+                        className="px-2 py-0.5 rounded-full bg-white border border-emerald-300 text-xs text-emerald-800 hover:bg-emerald-100 transition flex items-center gap-1"
                         title="Click to add single product line"
                       >
                         <span>{prod.name}</span>
-                        <span className="font-bold text-amber-700">({prod.currentStock}/{prod.reorderLevel})</span>
-                        <Plus className="w-2.5 h-2.5 text-emerald-600" />
+                        <span className="font-bold text-amber-700 tabular-nums">({prod.currentStock}/{prod.reorderLevel})</span>
+                        <Plus className="w-3 h-3 text-emerald-600" />
                       </button>
                     ))}
                   </div>
@@ -747,7 +789,7 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                 {/* 3. Product Line Items */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-800 text-xs">
+                    <label className="font-bold text-slate-800 text-sm">
                       Order Line Items ({poLines.length})
                     </label>
                     <button
@@ -770,7 +812,6 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                           key={idx}
                           className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center gap-2.5"
                         >
-                          {/* Product select */}
                           <div className="flex-1 min-w-0">
                             <select
                               value={line.productId}
@@ -783,14 +824,13 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                                 </option>
                               ))}
                             </select>
-                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                              SKU: {prod?.sku} • Stock: {prod?.currentStock} {prod?.unit}
+                            <div className="text-xs text-slate-400 mt-0.5">
+                              SKU: <span className="font-mono">{prod?.sku}</span> • Stock: {prod?.currentStock} {prod?.unit}
                             </div>
                           </div>
 
-                          {/* Ordered Qty */}
                           <div className="w-24">
-                            <label className="text-[10px] text-slate-400 font-medium block">Qty:</label>
+                            <label className="text-xs text-slate-400 font-medium block">Qty:</label>
                             <input
                               type="number"
                               min="1"
@@ -801,9 +841,8 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                             />
                           </div>
 
-                          {/* Unit Cost */}
                           <div className="w-24">
-                            <label className="text-[10px] text-slate-400 font-medium block">Unit ($):</label>
+                            <label className="text-xs text-slate-400 font-medium block">Unit ($):</label>
                             <input
                               type="number"
                               step="0.01"
@@ -815,15 +854,13 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                             />
                           </div>
 
-                          {/* Subtotal */}
                           <div className="w-24 text-right">
-                            <label className="text-[10px] text-slate-400 font-medium block">Line Total:</label>
+                            <label className="text-xs text-slate-400 font-medium block">Line Total:</label>
                             <span className="font-bold text-emerald-700 text-xs tabular-nums block mt-1">
                               ${lineSubtotal.toFixed(2)}
                             </span>
                           </div>
 
-                          {/* Remove row */}
                           <button
                             type="button"
                             onClick={() => handleRemoveLine(idx)}
@@ -840,7 +877,7 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
+                  <label className="block text-slate-700 font-semibold mb-1 text-sm">
                     Procurement Notes / Instructions
                   </label>
                   <textarea
@@ -848,14 +885,14 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="e.g. Priority morning unloading at dock bay 2"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                   />
                 </div>
 
                 {/* Grand Total Bar & Submit */}
                 <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
                   <div>
-                    <div className="text-[11px] text-slate-500 font-medium">Auto-Calculated Total Cost:</div>
+                    <div className="text-xs text-slate-500 font-medium">Auto-Calculated Total Cost:</div>
                     <div className="text-xl font-bold text-emerald-700 tabular-nums">
                       ${calculatedGrandTotal.toFixed(2)}
                     </div>
@@ -865,13 +902,13 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                     <button
                       type="button"
                       onClick={() => setIsNewPODrawerOpen(false)}
-                      className="px-4 py-2 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition h-10"
+                      className="px-4 py-2 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition h-10"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition flex items-center gap-1.5 h-10 active:scale-98"
+                      className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-xs transition flex items-center gap-1.5 h-10 active:scale-98"
                     >
                       <Send className="w-4 h-4" />
                       <span>Issue & Send PO</span>
@@ -886,9 +923,7 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
         </div>
       )}
 
-      {/* ========================================================
-          "MARK AS RECEIVED" GOODS INWARDING CONFIRMATION MODAL
-         ======================================================== */}
+      {/* "MARK AS RECEIVED" GOODS INWARDING CONFIRMATION MODAL */}
       {receivingPO && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 animate-in zoom-in-95 duration-150">
@@ -900,9 +935,9 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">
-                    Dockside Inwarding (GRN) — {receivingPO.poNumber}
+                    Dockside Inwarding (GRN) — <span className="font-mono">{receivingPO.poNumber}</span>
                   </h3>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-xs text-slate-500">
                     Supplier: <strong className="text-slate-800">{receivingPO.supplierName}</strong>
                   </p>
                 </div>
@@ -923,14 +958,13 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
               </div>
             )}
 
-            <form onSubmit={handleConfirmReceiveSubmit} className="mt-4 space-y-4 text-xs">
+            <form onSubmit={handleConfirmReceiveSubmit} className="mt-4 space-y-4 text-sm">
               
-              <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 leading-relaxed text-[11px]">
+              <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 leading-relaxed text-xs">
                 Confirm quantities physically unloaded and verified at the warehouse loading dock today. 
                 Submitting will <strong>automatically increase product stock</strong> and write <strong>immutable RECEIVED records</strong> to the inventory movement ledger.
               </div>
 
-              {/* Line items verification list */}
               <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
                 {receivingPO.items.map(item => {
                   const already = item.receivedQty || 0;
@@ -940,35 +974,32 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                   return (
                     <div 
                       key={item.productId}
-                      className="p-3 rounded-lg border border-slate-200 bg-white flex items-center justify-between gap-3 shadow-2xs"
+                      className="p-3 rounded-lg border border-slate-200 bg-white flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold text-slate-900 text-xs truncate">
                           {item.productName}
                         </div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
-                          <span className="font-mono">SKU: {item.sku}</span>
-                          <span>•</span>
-                          <span>Ordered: <strong>{item.orderedQty}</strong></span>
-                          <span>•</span>
-                          <span>Prev Received: <strong className="text-emerald-700">{already}</strong></span>
+                        <div className="text-xs text-slate-400 mt-0.5">
+                          SKU: <span className="font-mono">{item.sku}</span> • Ordered: <span className="tabular-nums font-medium">{item.orderedQty}</span> • Already in: <span className="tabular-nums font-medium">{already}</span>
                         </div>
                       </div>
 
-                      <div className="w-28 text-right flex-shrink-0">
-                        <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">
-                          Receiving Today:
-                        </label>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <label className="text-xs text-slate-500 font-medium">Arrived:</label>
                         <input
                           type="number"
                           min="0"
-                          max={item.orderedQty}
+                          max={remaining}
                           value={currentVal}
                           onChange={(e) => {
                             const val = parseInt(e.target.value) || 0;
-                            setReceiveInputs(prev => ({ ...prev, [item.productId]: val }));
+                            setReceiveInputs(prev => ({
+                              ...prev,
+                              [item.productId]: val
+                            }));
                           }}
-                          className="w-full px-2 py-1 text-xs border border-slate-300 rounded font-bold text-center tabular-nums text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          className="w-18 px-2 py-1 rounded-md border border-slate-300 text-xs tabular-nums font-bold text-center text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50 h-8"
                         />
                       </div>
                     </div>
@@ -976,21 +1007,20 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
                 })}
               </div>
 
-              {/* Footer */}
               <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setReceivingPO(null)}
-                  className="px-4 py-2 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition h-9"
+                  className="px-4 py-2 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition h-10"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition flex items-center gap-1.5 h-9 active:scale-98"
+                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-xs transition flex items-center gap-1.5 h-10 active:scale-98"
                 >
                   <PackageCheck className="w-4 h-4" />
-                  <span>Confirm Receipt & Update Stock</span>
+                  <span>Confirm Dock Receipt & Inward Stock</span>
                 </button>
               </div>
 
@@ -1000,70 +1030,79 @@ export const PurchaseOrderManagement: React.FC<PurchaseOrderManagementProps> = (
         </div>
       )}
 
-      {/* ========================================================
-          INSPECT PO DETAILS MODAL
-         ======================================================== */}
+      {/* PO DETAILS INSPECTION MODAL */}
       {selectedPODetails && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 border border-slate-200 text-xs">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full p-6 border border-slate-200 animate-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-200">
               <div>
-                <h3 className="font-bold text-slate-900 text-sm">{selectedPODetails.poNumber} Details</h3>
-                <p className="text-slate-500 text-[11px]">Supplier: {selectedPODetails.supplierName}</p>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <span>Purchase Order Inspection:</span>
+                  <span className="font-mono text-emerald-700">{selectedPODetails.poNumber}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Vendor: <strong className="text-slate-800">{selectedPODetails.supplierName}</strong>
+                </p>
               </div>
-              <button onClick={() => setSelectedPODetails(null)} className="text-slate-400 hover:text-slate-600">
+              <button
+                onClick={() => setSelectedPODetails(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 p-3 rounded-lg bg-slate-50 border border-slate-200">
-                <div>Created: <strong className="font-mono">{selectedPODetails.createdAt}</strong></div>
-                <div>Expected: <strong className="font-mono">{selectedPODetails.expectedDelivery}</strong></div>
-                <div>Approved By: <strong>{selectedPODetails.approvedBy || 'Pending'}</strong></div>
+            <div className="mt-4 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div>Issued Date: <strong className="tabular-nums text-slate-800">{selectedPODetails.createdAt.substring(0, 10)}</strong></div>
+                <div>Expected Arrival: <strong className="tabular-nums text-slate-800">{selectedPODetails.expectedDelivery}</strong></div>
                 <div>Status: <strong className="text-emerald-700">{selectedPODetails.status}</strong></div>
+                <div>Grand Total: <strong className="tabular-nums text-emerald-700 font-bold">${selectedPODetails.totalCost.toFixed(2)}</strong></div>
               </div>
 
               <div>
-                <div className="font-bold text-slate-800 mb-1.5">Line Items:</div>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {selectedPODetails.items.map(item => (
-                    <div key={item.productId} className="p-2.5 rounded border border-slate-200 bg-white flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-slate-900">{item.productName}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">SKU: {item.sku}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold tabular-nums">
-                          {item.receivedQty} / {item.orderedQty} units
-                        </div>
-                        <div className="text-[10px] text-emerald-700 font-semibold tabular-nums">
-                          ${(item.orderedQty * item.unitCost).toFixed(2)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <h4 className="font-bold text-slate-800 mb-1.5">Line Items:</h4>
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-2">Item</th>
+                        <th className="p-2 font-mono">SKU</th>
+                        <th className="p-2 text-center">Ordered</th>
+                        <th className="p-2 text-center">Received</th>
+                        <th className="p-2 text-right">Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedPODetails.items.map((it, i) => (
+                        <tr key={i}>
+                          <td className="p-2 font-medium text-slate-900">{it.productName}</td>
+                          <td className="p-2 font-mono text-slate-500">{it.sku}</td>
+                          <td className="p-2 text-center tabular-nums font-semibold">{it.orderedQty}</td>
+                          <td className="p-2 text-center tabular-nums text-emerald-700 font-bold">{it.receivedQty || 0}</td>
+                          <td className="p-2 text-right tabular-nums">${it.unitCost.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                <span className="font-bold text-slate-700">Total Purchase Cost:</span>
-                <span className="text-base font-bold text-emerald-700 tabular-nums">
-                  ${selectedPODetails.totalCost.toFixed(2)}
-                </span>
-              </div>
+              {selectedPODetails.notes && (
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600">
+                  <span className="font-semibold text-slate-800">Notes:</span> {selectedPODetails.notes}
+                </div>
+              )}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+            <div className="mt-5 pt-3 border-t border-slate-100 flex justify-end">
               <button
                 onClick={() => setSelectedPODetails(null)}
-                className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium"
+                className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium transition"
               >
                 Close
               </button>
             </div>
-
           </div>
         </div>
       )}

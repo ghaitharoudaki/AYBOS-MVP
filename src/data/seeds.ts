@@ -626,40 +626,91 @@ export const SEED_PRODUCTS: Product[] = [
 ];
 
 export const SEED_PURCHASE_ORDERS: PurchaseOrder[] = [
+  // 1. DRAFT 1
   {
     id: 'po-101',
     poNumber: 'PO-2026-00101',
-    supplierId: 'sup-2',
-    supplierName: 'Baraka Fresh Farms Dairy Co.',
-    status: 'SENT',
-    createdAt: '2026-11-06 10:30',
-    expectedDelivery: '2026-11-09',
-    approvedBy: 'Dr. Tariq (Store Manager)',
-    totalCost: 512.50,
-    notes: 'Priority morning delivery for fresh milk and brown eggs.',
+    supplierId: 'sup-1',
+    supplierName: 'Al-Madina Food Supplies Ltd',
+    status: 'DRAFT',
+    createdAt: '2026-11-08 09:30',
+    expectedDelivery: '2026-11-14',
+    totalCost: 385.00,
+    notes: 'Draft order for weekly pasta and cooking oil replenishment.',
     items: [
-      { productId: 'prod-1', productName: 'Almarai Full Cream Fresh Milk 1L', sku: 'SKU-MILK-001', orderedQty: 50, receivedQty: 0, unitCost: 4.20 },
-      { productId: 'prod-2', productName: 'Farm Fresh Brown Eggs (Pack of 30)', sku: 'SKU-EGG-002', orderedQty: 20, receivedQty: 0, unitCost: 14.50 },
+      { productId: 'prod-21', productName: 'Golden Sunflower Cooking Oil 1.8L', sku: 'SKU-OIL-021', orderedQty: 20, receivedQty: 0, unitCost: 12.50 },
+      { productId: 'prod-23', productName: 'Italian Bronze-Cut Penne Rigate 500g', sku: 'SKU-PAS-023', orderedQty: 50, receivedQty: 0, unitCost: 2.70 }
     ]
   },
+  // 2. DRAFT 2
   {
     id: 'po-102',
     poNumber: 'PO-2026-00102',
+    supplierId: 'sup-4',
+    supplierName: 'Sultan Bakery & Milling Group',
+    status: 'DRAFT',
+    createdAt: '2026-11-08 14:10',
+    expectedDelivery: '2026-11-13',
+    totalCost: 195.00,
+    notes: 'Pending review by purchasing officer for bakery toast lines.',
+    items: [
+      { productId: 'prod-9', productName: 'Whole Wheat Toast Bread 600g', sku: 'SKU-BRD-009', orderedQty: 100, receivedQty: 0, unitCost: 1.95 }
+    ]
+  },
+  // 3. SENT 1
+  {
+    id: 'po-103',
+    poNumber: 'PO-2026-00103',
+    supplierId: 'sup-2',
+    supplierName: 'Baraka Fresh Farms Dairy Co.',
+    status: 'SENT',
+    createdAt: '2026-11-07 10:30',
+    expectedDelivery: '2026-11-10',
+    approvedBy: 'Dr. Tariq (Store Manager)',
+    totalCost: 500.00,
+    notes: 'Priority morning delivery for fresh milk and brown eggs.',
+    items: [
+      { productId: 'prod-1', productName: 'Almarai Full Cream Fresh Milk 1L', sku: 'SKU-MILK-001', orderedQty: 50, receivedQty: 0, unitCost: 4.20 },
+      { productId: 'prod-2', productName: 'Farm Fresh Brown Eggs (Pack of 30)', sku: 'SKU-EGG-002', orderedQty: 20, receivedQty: 0, unitCost: 14.50 }
+    ]
+  },
+  // 4. SENT 2
+  {
+    id: 'po-104',
+    poNumber: 'PO-2026-00104',
+    supplierId: 'sup-5',
+    supplierName: 'Oasis Beverages & Water Distribution',
+    status: 'SENT',
+    createdAt: '2026-11-06 16:45',
+    expectedDelivery: '2026-11-11',
+    approvedBy: 'Dr. Tariq (Store Manager)',
+    totalCost: 310.00,
+    notes: 'Dispatched to vendor via EDI. Awaiting dispatch confirmation.',
+    items: [
+      { productId: 'prod-14', productName: 'Natural Sparkling Water 330ml Can', sku: 'SKU-BEV-014', orderedQty: 120, receivedQty: 0, unitCost: 1.10 },
+      { productId: 'prod-15', productName: 'Valencia Squeezed Orange Juice 1L', sku: 'SKU-JUC-015', orderedQty: 40, receivedQty: 0, unitCost: 4.45 }
+    ]
+  },
+  // 5. PARTIALLY RECEIVED (25/40 units received)
+  {
+    id: 'po-105',
+    poNumber: 'PO-2026-00105',
     supplierId: 'sup-3',
     supplierName: 'Sham Grains & Mills Trading',
     status: 'PARTIAL',
     createdAt: '2026-11-04 14:15',
-    expectedDelivery: '2026-11-07',
+    expectedDelivery: '2026-11-09',
     approvedBy: 'Dr. Tariq (Store Manager)',
     totalCost: 1280.00,
-    notes: 'Scheduled monthly grains shipment.',
+    notes: 'First batch of 25 sacks received at bay 2; remaining 15 scheduled for arrival tomorrow.',
     items: [
       { productId: 'prod-20', productName: 'Royal Basmati Premium Rice 5kg', sku: 'SKU-RIC-020', orderedQty: 40, receivedQty: 25, unitCost: 32.00 }
     ]
   },
+  // 6. RECEIVED 1
   {
-    id: 'po-103',
-    poNumber: 'PO-2026-00103',
+    id: 'po-106',
+    poNumber: 'PO-2026-00106',
     supplierId: 'sup-1',
     supplierName: 'Al-Madina Food Supplies Ltd',
     status: 'RECEIVED',
@@ -667,10 +718,43 @@ export const SEED_PURCHASE_ORDERS: PurchaseOrder[] = [
     expectedDelivery: '2026-11-05',
     approvedBy: 'Dr. Tariq (Store Manager)',
     totalCost: 440.00,
-    notes: 'Completed restocking of premium cooking oils.',
+    notes: 'Completed inwarding of premium cooking oils and sauces. Physical stock verified.',
     items: [
       { productId: 'prod-21', productName: 'Golden Sunflower Cooking Oil 1.8L', sku: 'SKU-OIL-021', orderedQty: 20, receivedQty: 20, unitCost: 12.50 },
       { productId: 'prod-23', productName: 'Italian Bronze-Cut Penne Rigate 500g', sku: 'SKU-PAS-023', orderedQty: 50, receivedQty: 50, unitCost: 2.10 }
+    ]
+  },
+  // 7. RECEIVED 2
+  {
+    id: 'po-107',
+    poNumber: 'PO-2026-00107',
+    supplierId: 'sup-2',
+    supplierName: 'Baraka Fresh Farms Dairy Co.',
+    status: 'RECEIVED',
+    createdAt: '2026-10-28 08:30',
+    expectedDelivery: '2026-10-31',
+    approvedBy: 'Dr. Tariq (Store Manager)',
+    totalCost: 620.00,
+    notes: 'Dairy restocking verified. Quality inspection passed.',
+    items: [
+      { productId: 'prod-3', productName: 'Nabulsi Soft White Cheese 500g', sku: 'SKU-CHS-003', orderedQty: 40, receivedQty: 40, unitCost: 8.50 },
+      { productId: 'prod-1', productName: 'Almarai Full Cream Fresh Milk 1L', sku: 'SKU-MILK-001', orderedQty: 60, receivedQty: 60, unitCost: 4.20 }
+    ]
+  },
+  // 8. CANCELLED 1
+  {
+    id: 'po-108',
+    poNumber: 'PO-2026-00108',
+    supplierId: 'sup-6',
+    supplierName: 'Golden Valley Produce & Greens',
+    status: 'CANCELLED',
+    createdAt: '2026-10-25 11:20',
+    expectedDelivery: '2026-10-28',
+    approvedBy: 'Dr. Tariq (Store Manager)',
+    totalCost: 280.00,
+    notes: 'Cancelled due to vendor logistical route suspension. Replaced with alternative supplier.',
+    items: [
+      { productId: 'prod-26', productName: 'Crisp Red Fuji Apples 1kg', sku: 'SKU-APP-026', orderedQty: 50, receivedQty: 0, unitCost: 5.60 }
     ]
   }
 ];

@@ -50,6 +50,7 @@ export interface StockMovement {
   quantityDelta?: number;
   referenceId?: string;
   notes?: string;
+  performedBy?: string;
 }
 
 export interface SaleItem {
@@ -74,6 +75,7 @@ export interface Sale {
   changeDue: number;
   paymentMethod: 'CASH' | 'CARD';
   timestamp: string;
+  saleNumber?: string;
 }
 
 // Aliases for compatibility

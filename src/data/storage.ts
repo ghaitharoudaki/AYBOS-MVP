@@ -73,7 +73,15 @@ export const StorageRepository = {
   setSuppliers: (suppliers: Supplier[]): void => saveToStorage(STORAGE_KEYS.SUPPLIERS, suppliers),
 
   // Purchase Orders
-  getOrders: (): PurchaseOrder[] => loadFromStorage(STORAGE_KEYS.ORDERS, SEED_PURCHASE_ORDERS),
+  getOrders: (): PurchaseOrder[] => {
+    const list = loadFromStorage<PurchaseOrder[]>(STORAGE_KEYS.ORDERS, SEED_PURCHASE_ORDERS);
+    // If user's stored cache has older 3-item seed, seamlessly upgrade to full 8-item seed set
+    if (Array.isArray(list) && list.length < 8 && SEED_PURCHASE_ORDERS.length === 8) {
+      saveToStorage(STORAGE_KEYS.ORDERS, SEED_PURCHASE_ORDERS);
+      return SEED_PURCHASE_ORDERS;
+    }
+    return list;
+  },
   setOrders: (orders: PurchaseOrder[]): void => saveToStorage(STORAGE_KEYS.ORDERS, orders),
 
   // Sales

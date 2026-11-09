@@ -14,7 +14,8 @@ import {
   HelpCircle,
   RotateCcw,
   Shield,
-  ChevronDown
+  Plus,
+  UserPlus
 } from 'lucide-react';
 
 import { 
@@ -36,8 +37,11 @@ import { PurchaseOrderManagement } from './components/PurchaseOrderManagement';
 import { DashboardReporting } from './components/DashboardReporting';
 import { UserRoleManagement } from './components/UserRoleManagement';
 import { AboutDocsModal } from './components/AboutDocsModal';
+import { AppSkeletonLoader } from './components/AppSkeletonLoader';
+import { ToastContainer } from './components/ToastContainer';
+import { ConfirmModal } from './components/ConfirmModal';
 
-type ActiveModule = 'POS' | 'PRODUCTS' | 'INVENTORY' | 'SUPPLIERS' | 'PURCHASING' | 'DASHBOARD' | 'USERS';
+export type ActiveModule = 'POS' | 'PRODUCTS' | 'INVENTORY' | 'SUPPLIERS' | 'PURCHASING' | 'DASHBOARD' | 'USERS';
 
 // RBAC Allowed Modules Mapping
 const ROLE_ALLOWED_MODULES: Record<Role, ActiveModule[]> = {
@@ -49,6 +53,7 @@ const ROLE_ALLOWED_MODULES: Record<Role, ActiveModule[]> = {
 
 function AppContent() {
   const {
+    loading,
     currentUser,
     users,
     categories,
@@ -63,6 +68,7 @@ function AppContent() {
     adjustStock,
     addProduct,
     updateProduct,
+    deleteProduct,
     addSupplier,
     updateSupplier,
     createPO,
@@ -71,7 +77,9 @@ function AppContent() {
     updateUser,
     toggleUserStatus,
     switchUser,
-    resetToSeeds
+    resetToSeeds,
+    toasts,
+    dismissToast
   } = useStore();
 
   // Layout & Navigation State
@@ -80,6 +88,17 @@ function AppContent() {
   const [globalSearch, setGlobalSearch] = useState('');
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+
+  // Top Bar Action Trigger for opening child drawers
+  const [actionTrigger, setActionTrigger] = useState<{ module: ActiveModule; timestamp: number }>({
+    module: 'POS',
+    timestamp: 0
+  });
+
+  const triggerAction = (mod: ActiveModule) => {
+    setActionTrigger({ module: mod, timestamp: Date.now() });
+  };
 
   // --- Handlers coordinating with Central Store & Async Services ---
   const handleCompleteSale = async (newReceipt: SalesReceipt) => {
@@ -155,7 +174,6 @@ function AppContent() {
   };
 
   const handleSwitchRole = (targetRole: Role) => {
-    // Find an account matching this role, or create a demo session
     const targetUser = users.find(u => u.role === targetRole) || {
       id: `usr-demo-${targetRole.toLowerCase()}`,
       name: `${targetRole.charAt(0) + targetRole.slice(1).toLowerCase()} User`,
@@ -185,6 +203,10 @@ function AppContent() {
   const visibleNavItems = navItems.filter(item => allowedModules.includes(item.id));
   const currentNav = navItems.find(n => n.id === activeModule) || visibleNavItems[0] || navItems[0];
 
+  if (loading) {
+    return <AppSkeletonLoader />;
+  }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#F6F7F9] text-slate-900 font-sans antialiased" dir="ltr">
       
@@ -198,17 +220,17 @@ function AppContent() {
         }`}
       >
         {/* Brand Logo & Collapse Toggle */}
-        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800/80 flex-shrink-0">
+        <div className="h-14 px-4 flex items-center justify-between border-b border-slate-800/80 flex-shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-white text-base shadow-xs flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-white text-sm shadow-xs flex-shrink-0">
               AY
             </div>
             {!sidebarCollapsed && (
               <div className="truncate">
-                <span className="font-bold tracking-tight text-white text-base">
+                <span className="font-bold tracking-tight text-white text-sm">
                   AYBOS
                 </span>
-                <span className="block text-[11px] text-slate-400 font-medium leading-none mt-0.5">
+                <span className="block text-xs text-slate-400 font-medium leading-none mt-0.5">
                   Retail Core OS
                 </span>
               </div>
@@ -217,7 +239,7 @@ function AppContent() {
 
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition"
+            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition focus-visible:outline-2 focus-visible:outline-emerald-500"
             title={sidebarCollapsed ? "Expand sidebar (240px)" : "Collapse sidebar (72px)"}
           >
             {sidebarCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
@@ -225,7 +247,7 @@ function AppContent() {
         </div>
 
         {/* RBAC Filtered Navigation Modules: Hidden (not just disabled) if inaccessible */}
-        <nav className="flex-1 py-4 px-2.5 space-y-1 overflow-y-auto">
+        <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
           {visibleNavItems.map(item => {
             const Icon = item.icon;
             const isActive = activeModule === item.id;
@@ -251,7 +273,7 @@ function AppContent() {
                 }`} />
 
                 {!sidebarCollapsed && (
-                  <span className="truncate text-left text-[13px] font-medium tracking-tight">
+                  <span className="truncate text-left text-sm font-medium tracking-tight">
                     {item.label}
                   </span>
                 )}
@@ -292,9 +314,9 @@ function AppContent() {
                   <div className="font-semibold text-xs text-white truncate leading-tight">
                     {currentUser?.name || 'Staff User'}
                   </div>
-                  <div className="text-[10px] text-emerald-400 font-code font-medium mt-0.5 flex items-center justify-between">
+                  <div className="text-xs text-emerald-400 font-semibold mt-0.5 flex items-center justify-between">
                     <span>{currentUser?.role || 'ROLE'}</span>
-                    <span className="text-[9px] text-slate-400">Switch ▾</span>
+                    <span className="text-xs text-slate-400 font-normal">Switch ▾</span>
                   </div>
                 </div>
               )}
@@ -306,11 +328,11 @@ function AppContent() {
                 
                 {/* Header with live RBAC badge */}
                 <div className="px-1.5 pb-2 border-b border-slate-800 mb-2 flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                     <Shield className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Role Switcher (Demo RBAC)</span>
                   </span>
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/60">
+                  <span className="text-xs text-emerald-400 font-bold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/60">
                     LIVE
                   </span>
                 </div>
@@ -333,7 +355,7 @@ function AppContent() {
                           <span>{r}</span>
                           {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                         </div>
-                        <span className={`text-[10px] font-normal mt-0.5 ${isCurrent ? 'text-emerald-100' : 'text-slate-400'}`}>
+                        <span className={`text-xs font-normal mt-0.5 ${isCurrent ? 'text-emerald-100' : 'text-slate-400'}`}>
                           {r === 'CASHIER' ? 'POS only' :
                            r === 'INVENTORY' ? 'Stock & Catalog' :
                            r === 'PURCHASING' ? 'Suppliers & POs' : 'All 7 Modules'}
@@ -345,9 +367,9 @@ function AppContent() {
 
                 {/* Staff Accounts Submenu */}
                 <div className="pt-2 border-t border-slate-800">
-                  <div className="px-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <div className="px-1 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     <span>Staff Accounts</span>
-                    <span className="font-mono text-[9px] text-slate-500">{users.length} registered</span>
+                    <span className="text-xs text-slate-500 tabular-nums">{users.length} registered</span>
                   </div>
                   <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
                     {users.map(u => (
@@ -359,7 +381,7 @@ function AppContent() {
                         }`}
                       >
                         <span className="truncate text-xs">{u.name}</span>
-                        <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
                           u.role === 'MANAGER' ? 'bg-purple-900/60 text-purple-300' :
                           u.role === 'CASHIER' ? 'bg-blue-900/60 text-blue-300' :
                           u.role === 'INVENTORY' ? 'bg-amber-900/60 text-amber-300' :
@@ -376,15 +398,13 @@ function AppContent() {
                 <div className="mt-2 pt-2 border-t border-slate-800">
                   <button
                     onClick={() => {
-                      if (window.confirm('Reset all catalog, inventory, sales, and orders back to initial realistic seeds?')) {
-                        resetToSeeds();
-                        setUserMenuOpen(false);
-                      }
+                      setIsResetConfirmOpen(true);
+                      setUserMenuOpen(false);
                     }}
-                    className="w-full text-left px-2 py-1.5 rounded-md text-amber-400 hover:bg-amber-950/40 text-[11px] font-medium flex items-center gap-1.5 transition"
+                    className="w-full text-left px-2 py-1.5 rounded-md text-amber-400 hover:bg-amber-950/40 text-xs font-medium flex items-center gap-1.5 transition focus-visible:outline-2 focus-visible:outline-amber-500"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Reset Data to Seeds</span>
+                    <span>Reset Data to Seeds...</span>
                   </button>
                 </div>
 
@@ -402,35 +422,35 @@ function AppContent() {
          ======================================================== */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         
-        {/* Minimal Content Top Bar (Height: 56px) */}
-        <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between flex-shrink-0 shadow-2xs z-20">
+        {/* Unified Top Bar (Height: 56px) with Page Title and Module Primary Actions */}
+        <header className="h-14 bg-white border-b border-slate-200 px-5 sm:px-6 flex items-center justify-between flex-shrink-0 shadow-2xs z-20">
           
           {/* Page Title & Subtitle */}
           <div>
             <h1 className="text-base font-bold text-slate-900 leading-tight">
               {currentNav.label}
             </h1>
-            <p className="text-xs text-slate-500 hidden sm:block leading-none mt-0.5">
+            <p className="text-[13px] text-slate-500 hidden sm:block leading-none mt-0.5">
               {currentNav.subtitle}
             </p>
           </div>
 
-          {/* Right Top Bar Controls: Global Search + Notifications + Profile */}
+          {/* Right Top Bar Controls: Global Search + Primary Action + Notifications */}
           <div className="flex items-center gap-3">
             
             {/* Minimal Global Search */}
-            <div className="relative w-48 sm:w-64">
+            <div className="relative w-44 sm:w-64">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
               <input
                 type="text"
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
-                placeholder="Search products or orders..."
-                className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition h-9 placeholder:text-slate-400"
+                placeholder="Search catalog or orders..."
+                className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition h-9 placeholder:text-slate-400"
               />
             </div>
 
-            {/* Notification Bell with Low-Stock Count Badge (Navigates to Dashboard or Inventory if permitted) */}
+            {/* Notification Bell with Low-Stock Count Badge */}
             <button
               onClick={() => {
                 if (allowedModules.includes('DASHBOARD')) {
@@ -439,43 +459,74 @@ function AppContent() {
                   setActiveModule('INVENTORY');
                 }
               }}
-              className="relative p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
+              className="relative p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition focus-visible:outline-2 focus-visible:outline-emerald-500"
               title={`${lowStockCount} items at or below reorder threshold`}
             >
               <Bell className="w-4 h-4" />
               {lowStockCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-amber-500 text-white font-bold text-[10px] flex items-center justify-center leading-none">
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-amber-500 text-white font-bold text-xs flex items-center justify-center leading-none tabular-nums">
                   {lowStockCount}
                 </span>
               )}
             </button>
 
-            {/* User Avatar Chip with Role Switcher trigger */}
-            <button
-              onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center gap-2 pl-2 border-l border-slate-200 text-left hover:opacity-90 transition group cursor-pointer"
-              title="Click to toggle user & role switcher"
-            >
-              <div className="w-8 h-8 rounded-full bg-slate-900 text-white font-semibold text-xs flex items-center justify-center group-hover:ring-2 group-hover:ring-emerald-500 transition shadow-2xs">
-                {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
-              </div>
-              <div className="hidden md:block text-left">
-                <div className="text-xs font-semibold text-slate-900 leading-none flex items-center gap-1">
-                  <span>{currentUser?.name || 'Staff User'}</span>
-                  <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-slate-700 transition" />
-                </div>
-                <div className="text-[10px] text-emerald-600 font-code font-bold mt-0.5">
-                  {currentUser?.role || 'ROLE'}
-                </div>
-              </div>
-            </button>
+            {/* Moved Primary Action Button for active module directly into the Top Bar */}
+            {activeModule === 'PRODUCTS' && userRole === 'MANAGER' && (
+              <button
+                onClick={() => triggerAction('PRODUCTS')}
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition flex items-center gap-1.5 shadow-2xs h-9 active:scale-98 focus-visible:outline-2 focus-visible:outline-emerald-500"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Product</span>
+              </button>
+            )}
+
+            {activeModule === 'INVENTORY' && (userRole === 'MANAGER' || userRole === 'INVENTORY') && (
+              <button
+                onClick={() => triggerAction('INVENTORY')}
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition flex items-center gap-1.5 shadow-2xs h-9 active:scale-98 focus-visible:outline-2 focus-visible:outline-emerald-500"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Record Movement</span>
+              </button>
+            )}
+
+            {activeModule === 'SUPPLIERS' && (userRole === 'MANAGER' || userRole === 'PURCHASING') && (
+              <button
+                onClick={() => triggerAction('SUPPLIERS')}
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition flex items-center gap-1.5 shadow-2xs h-9 active:scale-98 focus-visible:outline-2 focus-visible:outline-emerald-500"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Register Supplier</span>
+              </button>
+            )}
+
+            {activeModule === 'PURCHASING' && (userRole === 'MANAGER' || userRole === 'PURCHASING') && (
+              <button
+                onClick={() => triggerAction('PURCHASING')}
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition flex items-center gap-1.5 shadow-2xs h-9 active:scale-98 focus-visible:outline-2 focus-visible:outline-emerald-500"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Purchase Order</span>
+              </button>
+            )}
+
+            {activeModule === 'USERS' && userRole === 'MANAGER' && (
+              <button
+                onClick={() => triggerAction('USERS')}
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition flex items-center gap-1.5 shadow-2xs h-9 active:scale-98 focus-visible:outline-2 focus-visible:outline-emerald-500"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Add Staff Account</span>
+              </button>
+            )}
 
           </div>
 
         </header>
 
-        {/* Scrollable Workspace Container */}
-        <main className="flex-1 overflow-y-auto p-5 sm:p-6 min-h-0 bg-[#F6F7F9]">
+        {/* Full Viewport Height Workspace Container */}
+        <main className="flex-1 min-h-0 p-4 sm:p-5 bg-[#F6F7F9] overflow-hidden flex flex-col">
           
           {activeModule === 'POS' && (
             <POSCheckout
@@ -492,6 +543,8 @@ function AppContent() {
               currentUser={currentUser}
               onAddProduct={handleAddProduct}
               onUpdateProduct={handleUpdateProduct}
+              onDeleteProduct={deleteProduct}
+              actionTrigger={actionTrigger}
             />
           )}
 
@@ -501,6 +554,7 @@ function AppContent() {
               movements={movements}
               currentUser={currentUser}
               onStockAdjustment={handleStockAdjustment}
+              actionTrigger={actionTrigger}
             />
           )}
 
@@ -510,6 +564,7 @@ function AppContent() {
               currentUser={currentUser}
               onAddSupplier={handleAddSupplier}
               onUpdateSupplier={handleUpdateSupplier}
+              actionTrigger={actionTrigger}
             />
           )}
 
@@ -522,6 +577,7 @@ function AppContent() {
               onCreatePO={handleCreatePO}
               onApprovePO={handleApprovePO}
               onReceivePO={handleReceivePO}
+              actionTrigger={actionTrigger}
             />
           )}
 
@@ -543,6 +599,7 @@ function AppContent() {
               onUpdateUser={updateUser}
               onToggleUserStatus={handleToggleUserStatus}
               onSwitchUser={handleSwitchUser}
+              actionTrigger={actionTrigger}
             />
           )}
 
@@ -555,6 +612,24 @@ function AppContent() {
         isOpen={isDocsModalOpen}
         onClose={() => setIsDocsModalOpen(false)}
       />
+
+      {/* Reset System Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isResetConfirmOpen}
+        title="Reset System to Sample Data?"
+        message="Are you sure you want to restore the initial supermarket seeds? All custom sales, products, inventory movements, and purchase orders will be reset to default demo records."
+        confirmLabel="Reset All Data"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={() => {
+          resetToSeeds();
+          setIsResetConfirmOpen(false);
+        }}
+        onCancel={() => setIsResetConfirmOpen(false)}
+      />
+
+      {/* Global High-Contrast System Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
     </div>
   );
